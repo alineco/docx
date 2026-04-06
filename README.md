@@ -1,8 +1,30 @@
-# Welcome
+# Welcome to docx
+
+## What is docx?
+
+**docx** is a TypeScript/JavaScript library for generating Word documents (.docx files) programmatically. It provides a declarative API that works seamlessly in both Node.js and browser environments.
+
+## Why docx?
+
+- **Declarative API** - Define what you want (objects/config), not how to build it step-by-step
+- **TypeScript First** - Full type definitions with IntelliSense support
+- **Universal** - Works in Node.js, browsers, and serverless environments
+- **No Dependencies** - Zero external runtime dependencies
+- **Full Featured** - Tables, images, headers, footers, styles, and more
+
+## Quick Navigation
+
+| I want to...              | Go to...                                                        |
+| ------------------------- | --------------------------------------------------------------- |
+| Get started quickly       | [Quickstart Guide](quickstart.md)                               |
+| Learn a specific feature  | [Usage Guides](#usage-guides)                                   |
+| See working examples      | [Demo Files](https://github.com/dolanmiu/docx/tree/master/demo) |
+| Browse the API            | [API Documentation](https://docx.js.org/api/)                   |
+| Modify existing documents | [Patcher](usage/patcher.md)                                     |
 
 ## Installation
 
-```sh
+```terminal
 npm install --save docx
 ```
 
@@ -15,7 +37,7 @@ const docx = require("docx");
 ```ts
 import * as docx from "docx";
 // or
-import { ... } from "docx";
+import { Document, Packer, Paragraph, TextRun } from "docx";
 ```
 
 ## Basic Usage
@@ -24,39 +46,31 @@ import { ... } from "docx";
 import * as fs from "fs";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 
-// Create document
-const doc = new Document();
-
-// Documents contain sections, you can have multiple sections per document, go here to learn more about sections
-// This simple example will only contain one section
-doc.addSection({
-    properties: {},
-    children: [
-        new Paragraph({
+const doc = new Document({
+    sections: [
+        {
             children: [
-                new TextRun("Hello World"),
-                new TextRun({
-                    text: "Foo Bar",
-                    bold: true,
-                }),
-                new TextRun({
-                    text: "\tGithub is the best",
-                    bold: true,
+                new Paragraph({
+                    children: [
+                        new TextRun("Hello World"),
+                        new TextRun({
+                            text: " - Bold text",
+                            bold: true,
+                        }),
+                    ],
                 }),
             ],
-        }),
+        },
     ],
 });
 
-// Used to export the file into a .docx file
 Packer.toBuffer(doc).then((buffer) => {
     fs.writeFileSync("My Document.docx", buffer);
 });
-
-// Done! A file called 'My Document.docx' will be in your file system.
 ```
 
 <p align="center">
+<!-- cspell:disable-next-line -->
     <img alt="clippy the assistant" src="./clippy.png">
 </p>
 

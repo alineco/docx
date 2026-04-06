@@ -97,6 +97,8 @@ const text = new TextRun({
 });
 ```
 
+See [demo/45-highlighting-text.ts](https://github.com/dolanmiu/docx/blob/master/demo/45-highlighting-text.ts) for highlighting examples, and [demo/46-shading-text.ts](https://github.com/dolanmiu/docx/blob/master/demo/46-shading-text.ts) for shading examples.
+
 ### Strike through
 
 ```ts
@@ -151,6 +153,28 @@ const text = new TextRun({
 });
 ```
 
+### Vanish and SpecVanish
+
+You may want to hide your text in your document.
+
+`Vanish` should affect the normal display of text, but an application may have settings to force hidden text to be displayed.
+
+```ts
+const text = new TextRun({
+    text: "This text will be hidden",
+    vanish: true,
+});
+```
+
+`SpecVanish` was typically used to ensure that a paragraph style can be applied to a part of a paragraph, and still appear as in the Table of Contents (which in previous word processors would ignore the use of the style if it were being used as a character style).
+
+```ts
+const text = new TextRun({
+    text: "This text will be hidden forever.",
+    specVanish: true,
+});
+```
+
 ## Break
 
 Sometimes you would want to put text underneath another line of text but inside the same paragraph.
@@ -158,6 +182,15 @@ Sometimes you would want to put text underneath another line of text but inside 
 ```ts
 const text = new TextRun({
     text: "break",
-    break: true,
+    break: 1,
+});
+```
+
+Adding two breaks:
+
+```ts
+const text = new TextRun({
+    text: "break",
+    break: 2,
 });
 ```

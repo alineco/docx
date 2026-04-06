@@ -4,9 +4,9 @@
 
 ## Intro
 
-* `Tables` contain a list of `Rows`
-* `Rows` contain a list of `TableCells`
-* `TableCells` contain a list of `Parahraphs` and/or `Tables`. You can add `Tables` as tables can be nested inside each other
+- `Tables` contain a list of `Rows`
+- `Rows` contain a list of `TableCells`
+- `TableCells` contain a list of `Paragraphs` and/or `Tables`. You can add `Tables` as tables can be nested inside each other
 
 Create a simple table like so:
 
@@ -19,8 +19,12 @@ const table = new Table({
 Then add the table in the `section`
 
 ```ts
-doc.addSection({
-    children: [table],
+const doc = new Document({
+    sections: [
+        {
+            children: [table],
+        },
+    ],
 });
 ```
 
@@ -46,6 +50,18 @@ const table = new Table({
     ...,
     width: {
         size: 4535,
+        type: WidthType.DXA,
+    }
+});
+```
+
+### Set Indent
+
+```ts
+const table = new Table({
+    ...,
+    indent: {
+        size: 600,
         type: WidthType.DXA,
     }
 });
@@ -90,7 +106,7 @@ Here is a list of options you can add to the `table row`:
 | children    | `Array<TableCell>`                    | Required |
 | cantSplit   | `boolean`                             | Optional |
 | tableHeader | `boolean`                             | Optional |
-| height      | `{ height: number, rule: HeightRule }` | Optional |
+| height      | `{ value: number, rule: HeightRule }` | Optional |
 
 ### Repeat row
 
@@ -140,16 +156,16 @@ const tableRow = new TableRow({
 
 ### Options
 
-| Property      | Type                                | Notes                                                       |
-| ------------- | ----------------------------------- | ----------------------------------------------------------- |
-| children      | `Array<Paragraph | Table>`          | Required. You can nest tables by adding a table into a cell |
-| shading       | `ITableShadingAttributesProperties` | Optional                                                    |
-| margins       | `ITableCellMarginOptions`           | Optional                                                    |
-| verticalAlign | `VerticalAlign`                     | Optional                                                    |
-| columnSpan    | `number`                            | Optional                                                    |
-| rowSpan       | `number`                            | Optional                                                    |
-| borders       | `BorderOptions`                     | Optional                                                    |
-| width         | `{ size: number type: WidthType }`  | Optional                                                    |
+| Property      | Type                               | Notes                                                       |
+| ------------- | ---------------------------------- | ----------------------------------------------------------- |
+| children      | `Array<Paragraph or Table>`        | Required. You can nest tables by adding a table into a cell |
+| shading       | `IShadingAttributesProperties`     | Optional                                                    |
+| margins       | `ITableCellMarginOptions`          | Optional                                                    |
+| verticalAlign | `VerticalAlignTable`               | Optional                                                    |
+| columnSpan    | `number`                           | Optional                                                    |
+| rowSpan       | `number`                           | Optional                                                    |
+| borders       | `BorderOptions`                    | Optional                                                    |
+| width         | `{ size: number type: WidthType }` | Optional                                                    |
 
 #### Border Options
 
@@ -169,7 +185,7 @@ const cell = new TableCell({
         top: {
             style: BorderStyle.DASH_DOT_STROKED,
             size: 1,
-            color: "red",
+            color: "ff0000",
         },
         bottom: {
             style: BorderStyle.THICK_THIN_MEDIUM_GAP,
@@ -188,12 +204,12 @@ Google DOCS does not support start and end borders, instead they use left and ri
 const cell = new TableCell({
     ...,
     borders: {
-        top: {
+        left: {
             style: BorderStyle.DOT_DOT_DASH,
             size: 3,
-            color: "green",
+            color: "00FF00",
         },
-        bottom: {
+        right: {
             style: BorderStyle.DOT_DOT_DASH,
             size: 3,
             color: "ff8000",
@@ -228,18 +244,12 @@ const cell = new TableCell({
 
 `WidthType` values can be:
 
-| Property | Notes                             |
-| -------- | --------------------------------- |
-| AUTO     |                                   |
-| DXA      | value is in twentieths of a point |
-| NIL      | is considered as zero             |
-| PCT      | percent of table width            |
-
-#### Example
-
-```ts
-cell.Properties.setWidth(100, WidthType.DXA);
-```
+| Property   | Notes                             |
+| ---------- | --------------------------------- |
+| AUTO       |                                   |
+| DXA        | Value is in twentieths of a point |
+| NIL        | Is considered as zero             |
+| PERCENTAGE | Percent of table width            |
 
 ### Nested Tables
 
@@ -258,7 +268,7 @@ Sets the vertical alignment of the contents of the cell
 ```ts
 const cell = new TableCell({
     ...,
-    verticalAlign: VerticalAlign,
+    verticalAlign: VerticalAlignTable,
 });
 ```
 
@@ -274,7 +284,7 @@ For example, to center align a cell:
 
 ```ts
 const cell = new TableCell({
-    verticalAlign: VerticalAlign.CENTER,
+    verticalAlign: VerticalAlignTable.CENTER,
 });
 ```
 
@@ -326,17 +336,64 @@ const cell = new TableCell({
 });
 ```
 
+### Visual Right to Left Table
+
+It is possible to reverse how the cells of the table are displayed. The table direction. More info here: https://superuser.com/questions/996912/how-to-change-a-table-direction-in-microsoft-word
+
+```ts
+const table = new Table({
+    visuallyRightToLeft: true,
+});
+```
+
+### Table Look (Conditional Formatting)
+
+Control which conditional formatting from a table style is applied. Table styles can define special formatting for the first row, first column, etc. Use `tableLook` to toggle these formatting options.
+
+```ts
+const table = new Table({
+    style: "GridTable5Dark-Accent3",
+    tableLook: {
+        firstRow: true, // Apply first row formatting
+        lastRow: false, // Don't apply last row formatting
+        firstColumn: true, // Apply first column formatting
+        lastColumn: false, // Don't apply last column formatting
+        noHBand: false, // Apply horizontal banding (row stripes)
+        noVBand: true, // Don't apply vertical banding (column stripes)
+    },
+});
+```
+
+**Note**: When `tableLook` is not specified at all, Word applies row and column banding by default, but does not apply first/last row/column formatting.
+
+#### Options
+
+| Property    | Type      | Description                               |
+| ----------- | --------- | ----------------------------------------- |
+| firstRow    | `boolean` | Apply special formatting to first row     |
+| lastRow     | `boolean` | Apply special formatting to last row      |
+| firstColumn | `boolean` | Apply special formatting to first column  |
+| lastColumn  | `boolean` | Apply special formatting to last column   |
+| noHBand     | `boolean` | Disable horizontal banding (row stripes)  |
+| noVBand     | `boolean` | Disable vertical banding (column stripes) |
+
+#### Example
+
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/100-table-look.ts ":include")
+
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/100-table-look.ts_
+
 ## Examples
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/4-basic-table.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/4-basic-table.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/4-basic-table.ts_
 
 ### Custom borders
 
-Example showing how to add colourful borders to tables
+Example showing how to add colorful borders to tables
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/20-table-cell-borders.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/20-table-cell-borders.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/20-table-cell-borders.ts_
 
@@ -344,11 +401,11 @@ _Source: https://github.com/dolanmiu/docx/blob/master/demo/20-table-cell-borders
 
 Example showing how to add images to tables
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/24-images-to-table-cell.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/24-images-to-table-cell.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/24-images-to-table-cell.ts_
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/36-image-to-table-cell.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/36-image-to-table-cell.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/36-image-to-table-cell.ts_
 
@@ -356,7 +413,7 @@ _Source: https://github.com/dolanmiu/docx/blob/master/demo/36-image-to-table-cel
 
 Example showing how align text in a table cell
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/31-tables.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/31-tables.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/31-tables.ts_
 
@@ -364,11 +421,11 @@ _Source: https://github.com/dolanmiu/docx/blob/master/demo/31-tables.ts_
 
 Example showing merging of columns and rows and shading
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/32-merge-and-shade-table-cells.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/32-merge-and-shade-table-cells.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/32-merge-and-shade-table-cells.ts_
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/41-merge-table-cells-2.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/41-merge-table-cells-2.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/41-merge-table-cells-2.ts_
 
@@ -376,12 +433,12 @@ _Source: https://github.com/dolanmiu/docx/blob/master/demo/41-merge-table-cells-
 
 Example showing merging of columns and rows
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/43-images-to-table-cell-2.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/43-images-to-table-cell-2.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/43-images-to-table-cell-2.ts_
 
 ### Floating tables
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/34-floating-tables.ts ':include')
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/34-floating-tables.ts ":include")
 
 _Source: https://github.com/dolanmiu/docx/blob/master/demo/34-floating-tables.ts_

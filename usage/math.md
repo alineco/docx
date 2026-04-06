@@ -6,7 +6,7 @@
 
 1.  To add math, create a `Math` object
 2.  Add `MathComponents` inside `Math`
-3.  `MathComponents` can have nested `MathComponents` inside. e.g. A fraction where the numerator is a square root, and the demoninator as another fraction. More on `MathComponents` below
+3.  `MathComponents` can have nested `MathComponents` inside. e.g. A fraction where the numerator is a square root, and the denominator as another fraction. More on `MathComponents` below
 4.  Make sure to add the `Math` object inside a `Paragraph`
 
 ## Example
@@ -61,7 +61,7 @@ new Math({
 
 ### Math Fraction
 
-`MathFractions` require a `numerator` and a `demoninator`, which are both a list of `MathComponents`
+`MathFractions` require a `numerator` and a `denominator`, which are both a list of `MathComponents`
 
 #### Example
 
@@ -263,3 +263,29 @@ new MathAngledBrackets({
     ],
 }),
 ```
+
+### Limit
+
+#### Limit Upper
+
+```ts
+new MathLimitUpper({
+    children: [new MathRun("x")],
+    limit: [new MathRun("-")],
+}),
+```
+
+#### Limit Lower
+
+```ts
+new MathLimitLower({
+    children: [new MathRun("lim")],
+    limit: [new MathRun("x→0")],
+}),
+```
+
+## Demo
+
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/55-math.ts ":include")
+
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/55-math.ts_
