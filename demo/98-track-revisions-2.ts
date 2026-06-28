@@ -1,4 +1,5 @@
-// Track Revisions for paragraph properties, section properties, tables
+// Track Revisions for paragraph properties, section properties, tables,
+// and nested run revisions (an insertion that another reviewer then deletes)
 // docs/usage/change-tracking.md
 
 import * as fs from "fs";
@@ -17,10 +18,14 @@ import {
     WidthType,
     DeletedTextRun,
     InsertedTextRun,
+    InsertedDeletedTextRun,
 } from "docx";
 
 const REVISION_DATE = "2020-10-06T09:00:00Z";
 const REVISION_AUTHOR = "Firstname Lastname";
+
+const SECOND_REVISION_DATE = "2020-10-07T11:30:00Z";
+const SECOND_REVISION_AUTHOR = "Second Reviewer";
 
 const doc = new Document({
     features: {
@@ -453,6 +458,25 @@ const doc = new Document({
                                 new TableCell({ children: [new Paragraph("Cell 4")] }),
                             ],
                         }),
+                    ],
+                }),
+                new Paragraph({ text: "" }),
+
+                new Paragraph({
+                    children: [new TextRun({ text: "Nested run revision (insertion then deletion)", bold: true })],
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun("Some"),
+                        // Inserted by the first reviewer, then deleted by the second
+                        new InsertedDeletedTextRun({
+                            text: "random",
+                            bold: true,
+                            italics: true,
+                            insertion: { id: 31, author: REVISION_AUTHOR, date: REVISION_DATE },
+                            deletion: { id: 32, author: SECOND_REVISION_AUTHOR, date: SECOND_REVISION_DATE },
+                        }),
+                        new TextRun("text"),
                     ],
                 }),
                 new Paragraph({ text: "" }),
