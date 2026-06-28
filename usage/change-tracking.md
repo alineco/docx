@@ -75,6 +75,34 @@ new TextRun({
 }).break();
 ```
 
+## Nested Revisions (Insertion then Deletion)
+
+When one reviewer inserts text and a different reviewer later deletes that same text, the change is a revision layered on top of another revision. Use an `InsertedDeletedTextRun` for this.
+
+The run content (`text` and any formatting) is supplied at the top level, just like `InsertedTextRun` and `DeletedTextRun`. The two change markers each need their own `id`, `author` and `date`, so they are provided as separate `insertion` and `deletion` objects.
+
+```ts
+import { Paragraph, InsertedDeletedTextRun } from "docx";
+
+const paragraph = new Paragraph({
+    children: [
+        new InsertedDeletedTextRun({
+            text: "inserted by one author, then deleted by another",
+            insertion: {
+                id: 0,
+                author: "First Author",
+                date: "2020-10-06T09:00:00Z",
+            },
+            deletion: {
+                id: 1,
+                author: "Second Author",
+                date: "2020-10-07T11:30:00Z",
+            },
+        }),
+    ],
+});
+```
+
 ## Paragraph Properties Revisions
 
 You can track changes to paragraph properties (such as alignment, spacing, indentation, borders, heading level, etc.) by adding a `revision` property directly to the `Paragraph` options. The revision must include all previous property values.
