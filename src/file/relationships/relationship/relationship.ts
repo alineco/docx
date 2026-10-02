@@ -26,10 +26,17 @@ export type RelationshipType =
     | "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
     | "http://schemas.microsoft.com/office/2011/relationships/commentsExtended"
     | "http://schemas.microsoft.com/office/2016/09/relationships/commentsIds"
-    | "http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible"
     | "http://schemas.openxmlformats.org/officeDocument/2006/relationships/font"
     | "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart"
     | "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package";
+
+/**
+ * Relationship types this fork writes that upstream docx doesn't, such as the commentsExtensible part.
+ *
+ * They're kept out of {@link RelationshipType}, which stays the same as upstream's: `PackagePart` exposes it, so a new
+ * member would break the API check against upstream's release.
+ */
+export type ForkRelationshipType = "http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible";
 
 /**
  * Target mode types for relationships.
@@ -43,7 +50,7 @@ export const TargetModeType = {
 
 type IRelationshipAttributes = {
     readonly id: string;
-    readonly type: RelationshipType;
+    readonly type: RelationshipType | ForkRelationshipType;
     readonly target: string;
     readonly targetMode?: (typeof TargetModeType)[keyof typeof TargetModeType];
 };
@@ -66,7 +73,7 @@ type IRelationshipAttributes = {
 
 export const createRelationship = (
     id: string,
-    type: RelationshipType,
+    type: RelationshipType | ForkRelationshipType,
     target: string,
     targetMode?: (typeof TargetModeType)[keyof typeof TargetModeType],
 ): XmlComponent =>

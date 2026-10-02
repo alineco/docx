@@ -26,6 +26,8 @@ jobs:
     test:
         name: Test
         runs-on: ubuntu-latest
+        env:
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         steps:
             - name: Checkout Repo
               uses: actions/checkout@v5
@@ -33,7 +35,9 @@ jobs:
               run: npm ci --force
             - name: Test
               run: npm run test:ci
+            # The Aline fork has no Codecov token, and Codecov refuses uploads without one, so only upload when it's set
             - name: Codecov
+              if: env.CODECOV_TOKEN != ''
               uses: codecov/codecov-action@v4
               with:
                   fail_ci_if_error: true
