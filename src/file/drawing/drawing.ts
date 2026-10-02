@@ -3,8 +3,11 @@ import { XmlComponent } from "@file/xml-components";
 
 import { Anchor } from "./anchor";
 import type { DocPropertiesOptions } from "./doc-properties/doc-properties";
+import type { DrawingLinkOptions } from "./doc-properties/non-visual-drawing-properties";
+import type { EffectExtentAttributes } from "./effect-extent/effect-extent";
 import type { IFloating } from "./floating";
 import { createInline } from "./inline";
+import type { ICropOptions } from "./inline/graphic/graphic-data/pic/blip/source-rectangle";
 import type { OutlineOptions } from "./inline/graphic/graphic-data/pic/shape-properties/outline/outline";
 import type { SolidFillOptions } from "./inline/graphic/graphic-data/pic/shape-properties/outline/solid-fill";
 
@@ -25,11 +28,14 @@ export type IDistance = {
  *
  * @see {@link Drawing}
  */
-export type IDrawingOptions = {
+export type IDrawingOptions = DrawingLinkOptions & {
     readonly floating?: IFloating;
     readonly docProperties?: DocPropertiesOptions;
     readonly outline?: OutlineOptions;
     readonly solidFill?: SolidFillOptions;
+    readonly crop?: ICropOptions;
+    /** How far the drawing's visible effects (such as a thick line) reach past its box, in EMUs */
+    readonly effectExtent?: EffectExtentAttributes;
 };
 
 /**
@@ -62,6 +68,10 @@ export class Drawing extends XmlComponent {
                     docProperties: drawingOptions.docProperties,
                     outline: drawingOptions.outline,
                     solidFill: drawingOptions.solidFill,
+                    crop: drawingOptions.crop,
+                    effectExtent: drawingOptions.effectExtent,
+                    link: drawingOptions.link,
+                    decorative: drawingOptions.decorative,
                 }),
             );
         } else {

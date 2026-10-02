@@ -36,6 +36,9 @@ Key schemas:
 | `ooxml-schemas/ISO-IEC29500-4_2016/dml-main.xsd`    | DrawingML (images, shapes)                 |
 | `ooxml-schemas/ISO-IEC29500-4_2016/shared-math.xsd` | Math equations                             |
 | `ooxml-schemas/ISO-IEC29500-4_2016/vml-main.xsd`    | VML (legacy shapes, textboxes)             |
+| `ooxml-schemas/microsoft/`                          | Microsoft's extensions (`w14:`, `wps:`...) |
+
+`ooxml-schemas/README.md` lists every schema and where it's from.
 
 Always cross-reference these schemas when implementing or modifying XML generation:
 
@@ -298,4 +301,29 @@ describe("ClassName", () => {
         });
     });
 });
+```
+
+## Live examples in the docs
+
+The code examples in the docs are live: the page runs each one, draws the document it makes next to the code, and lets readers edit the code and download the `.docx`. Write an example that makes a document as a whole file with its imports, and mark the code block `ts live`:
+
+````md
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
+    sections: [{ children: [new Paragraph("Hello World")] }],
+});
+```
+````
+
+The last `Document` the example makes is the one shown, so it doesn't need `Packer`. It can still end with `Packer.toBuffer` and `fs.writeFileSync` as in Node, and read files in the `demo` folder with `fs.readFileSync`, such as `./demo/assets/images/pizza.gif`. The demos a page includes from the `demo` folder are live without being marked. Code that isn't about the document, such as a server handler or bundler setup, stays a plain `ts` block.
+
+The preview is drawn by [docx-preview](https://github.com/VolodymyrBaydalka/docxjs), which leaves out shapes, charts and watermarks, so check those in Word.
+
+To see the live examples locally, build docx for the docs, then serve them:
+
+```terminal
+npm run build.docs
+npm run serve.docs
 ```

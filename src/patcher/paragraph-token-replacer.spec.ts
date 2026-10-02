@@ -310,95 +310,110 @@ describe("paragraph-token-replacer", () => {
             });
         });
 
-        // Try to fill rest of test coverage
-        // it("should replace token in paragraph", () => {
-        //     const output = replaceTokenInParagraphElement({
-        //         paragraphElement: {
-        //             name: "w:p",
-        //             elements: [
-        //                 {
-        //                     name: "w:r",
-        //                     elements: [
-        //                         {
-        //                             name: "w:t",
-        //                             elements: [
-        //                                 {
-        //                                     type: "text",
-        //                                     text: "test ",
-        //                                 },
-        //                             ],
-        //                         },
-        //                         {
-        //                             name: "w:t",
-        //                             elements: [
-        //                                 {
-        //                                     type: "text",
-        //                                     text: " hello ",
-        //                                 },
-        //                             ],
-        //                         },
-        //                     ],
-        //                 },
-        //             ],
-        //         },
-        //         renderedParagraph: {
-        //             index: 0,
-        //             path: [0],
-        //             runs: [
-        //                 {
-        //                     end: 4,
-        //                     index: 0,
-        //                     parts: [
-        //                         {
-        //                             end: 4,
-        //                             index: 0,
-        //                             start: 0,
-        //                             text: "test ",
-        //                         },
-        //                     ],
-        //                     start: 0,
-        //                     text: "test ",
-        //                 },
-        //                 {
-        //                     end: 10,
-        //                     index: 0,
-        //                     parts: [
-        //                         {
-        //                             end: 10,
-        //                             index: 0,
-        //                             start: 5,
-        //                             text: "hello ",
-        //                         },
-        //                     ],
-        //                     start: 5,
-        //                     text: "hello ",
-        //                 },
-        //             ],
-        //             text: "test hello ",
-        //         },
-        //         originalText: "hello",
-        //         replacementText: "world",
-        //     });
+        it("should not modify runs after the replacement is complete (default branch)", () => {
+            const output = replaceTokenInParagraphElement({
+                paragraphElement: {
+                    name: "w:p",
+                    elements: [
+                        {
+                            name: "w:r",
+                            elements: [{ name: "w:t", elements: [{ type: "text", text: "{{na" }] }],
+                        },
+                        {
+                            name: "w:r",
+                            elements: [{ name: "w:t", elements: [{ type: "text", text: "me}}" }] }],
+                        },
+                        {
+                            name: "w:r",
+                            elements: [{ name: "w:t", elements: [{ type: "text", text: " world" }] }],
+                        },
+                    ],
+                },
+                renderedParagraph: {
+                    text: "{{name}} world",
+                    runs: [
+                        { text: "{{na", parts: [{ text: "{{na", index: 0, start: 0, end: 3 }], index: 0, start: 0, end: 3 },
+                        { text: "me}}", parts: [{ text: "me}}", index: 0, start: 4, end: 7 }], index: 1, start: 4, end: 7 },
+                        { text: " world", parts: [{ text: " world", index: 0, start: 8, end: 13 }], index: 2, start: 8, end: 13 },
+                    ],
+                    index: 0,
+                    pathToParagraph: [0],
+                },
+                originalText: "{{name}}",
+                replacementText: "John",
+            });
 
-        //     expect(output).to.deep.equal({
-        //         elements: [
-        //             {
-        //                 elements: [
-        //                     {
-        //                         elements: [
-        //                             {
-        //                                 text: "test world ",
-        //                                 type: "text",
-        //                             },
-        //                         ],
-        //                         name: "w:t",
-        //                     },
-        //                 ],
-        //                 name: "w:r",
-        //             },
-        //         ],
-        //         name: "w:p",
-        //     });
-        // });
+            expect(output.elements![2]).to.deep.equal({
+                name: "w:r",
+                elements: [{ name: "w:t", elements: [{ type: "text", text: " world" }] }],
+            });
+        });
+
+        it("should replace a token in a later text of a run, using positions within that text", () => {
+            const output = replaceTokenInParagraphElement({
+                paragraphElement: {
+                    name: "w:p",
+                    elements: [
+                        {
+                            name: "w:r",
+                            elements: [
+                                { name: "w:t", elements: [{ type: "text", text: "Name:" }] },
+                                { name: "w:tab" },
+                                { name: "w:t", elements: [{ type: "text", text: "{{name}}" }] },
+                            ],
+                        },
+                    ],
+                },
+                renderedParagraph: {
+                    text: "Name:{{name}}",
+                    runs: [
+                        {
+                            text: "Name:{{name}}",
+                            parts: [
+                                { text: "Name:", index: 0, start: 0, end: 4 },
+                                { text: "{{name}}", index: 2, start: 5, end: 12 },
+                            ],
+                            index: 0,
+                            start: 0,
+                            end: 12,
+                        },
+                    ],
+                    index: 0,
+                    pathToParagraph: [0],
+                },
+                originalText: "{{name}}",
+                replacementText: "John",
+            });
+
+            expect(output.elements![0].elements!.map((e) => e.elements?.[0]?.text)).to.deep.equal(["Name:", undefined, "John"]);
+        });
+
+        it("should look for the token from fromIndex on", () => {
+            const output = replaceTokenInParagraphElement({
+                paragraphElement: {
+                    name: "w:p",
+                    elements: [{ name: "w:r", elements: [{ name: "w:t", elements: [{ type: "text", text: "{{name}} {{name}}" }] }] }],
+                },
+                renderedParagraph: {
+                    text: "{{name}} {{name}}",
+                    runs: [
+                        {
+                            text: "{{name}} {{name}}",
+                            parts: [{ text: "{{name}} {{name}}", index: 0, start: 0, end: 16 }],
+                            index: 0,
+                            start: 0,
+                            end: 16,
+                        },
+                    ],
+                    index: 0,
+                    pathToParagraph: [0],
+                },
+                originalText: "{{name}}",
+                replacementText: "John",
+                fromIndex: 1,
+            });
+
+            expect(output.elements![0].elements![0].elements![0].text).to.equal("{{name}} John");
+        });
     });
 });

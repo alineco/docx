@@ -4,10 +4,12 @@ import { describe, expect, it } from "vitest";
 
 import {
     abstractNumUniqueNumericIdGen,
+    bookmarkUniqueNumericId,
     bookmarkUniqueNumericIdGen,
     concreteNumUniqueNumericIdGen,
     convertInchesToTwip,
     convertMillimetersToTwip,
+    docPropertiesUniqueNumericId,
     docPropertiesUniqueNumericIdGen,
     encodeUtf8,
     hashedId,
@@ -62,11 +64,25 @@ describe("Utility", () => {
         });
     });
 
+    describe("#docPropertiesUniqueNumericId", () => {
+        it("should keep counting across calls instead of restarting", () => {
+            const first = docPropertiesUniqueNumericId();
+            expect(docPropertiesUniqueNumericId()).to.equal(first + 1);
+        });
+    });
+
     describe("#bookmarkUniqueNumericIdGen", () => {
         it("should generate a unique incrementing ID", () => {
             const uniqueNumericId = bookmarkUniqueNumericIdGen();
             expect(uniqueNumericId()).to.equal(1);
             expect(uniqueNumericId()).to.equal(2);
+        });
+    });
+
+    describe("#bookmarkUniqueNumericId", () => {
+        it("should keep counting across calls instead of restarting", () => {
+            const first = bookmarkUniqueNumericId();
+            expect(bookmarkUniqueNumericId()).to.equal(first + 1);
         });
     });
 

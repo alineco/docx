@@ -5,7 +5,8 @@ import { Formatter } from "@export/formatter";
 import { sectionMarginDefaults, sectionPageSizeDefaults } from "./document";
 import { File } from "./file";
 import { Footer, Header } from "./header";
-import { Paragraph } from "./paragraph";
+import { Paragraph, TextRun } from "./paragraph";
+import { createDefaultStyles } from "./styles/factory";
 
 const PAGE_SIZE_DEFAULTS = {
     "w:h": sectionPageSizeDefaults.HEIGHT,
@@ -419,6 +420,41 @@ describe("File", () => {
             expect(doc.Comments).to.not.be.undefined;
         });
 
+        it("should not add a comments relationship or content type when there are no comments", () => {
+            const doc = new File({
+                comments: {
+                    children: [],
+                },
+                sections: [],
+            });
+
+            expect(JSON.stringify(new Formatter().format(doc.Document.Relationships))).to.not.contain("comments");
+            expect(JSON.stringify(new Formatter().format(doc.ContentTypes))).to.not.contain("comments");
+        });
+
+        it("should add a comments relationship and content type when there are comments", () => {
+            const doc = new File({
+                comments: {
+                    children: [{ id: 0, children: [new Paragraph("comment")] }],
+                },
+                sections: [],
+            });
+
+            expect(JSON.stringify(new Formatter().format(doc.Document.Relationships))).to.contain(
+                JSON.stringify({
+                    Id: "rId6",
+                    Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+                    Target: "comments.xml",
+                }),
+            );
+            expect(JSON.stringify(new Formatter().format(doc.ContentTypes))).to.contain(
+                JSON.stringify({
+                    ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml",
+                    PartName: "/word/comments.xml",
+                }),
+            );
+        });
+
         it("should create CommentsExtended when comments have parentId", () => {
             const doc = new File({
                 comments: {
@@ -442,6 +478,38 @@ describe("File", () => {
             });
 
             expect(doc.CommentsExtended).to.be.undefined;
+        });
+
+        it("should create CommentsIds when a single (non-threaded) comment has durableId", () => {
+            const doc = new File({
+                comments: {
+                    children: [{ id: 0, children: [new Paragraph("comment")], durableId: "12AB34CD" }],
+                },
+                sections: [],
+            });
+
+            expect(doc.CommentsIds).to.not.be.undefined;
+
+            const tree = new Formatter().format(doc.CommentsIds!);
+            const root = tree["w16cid:commentsIds"] as readonly Record<string, { readonly _attr: Record<string, string> }>[];
+            const commentId = root.find((entry) => "w16cid:commentId" in entry)?.["w16cid:commentId"];
+            expect(commentId).to.not.be.undefined;
+            expect(commentId!._attr["w16cid:durableId"]).to.equal("12AB34CD");
+            expect(commentId!._attr["w16cid:paraId"]).to.be.a("string");
+        });
+
+        it("should create CommentsIds when threaded comments have durableId", () => {
+            const doc = new File({
+                comments: {
+                    children: [
+                        { id: 0, children: [new Paragraph("parent")], durableId: "11112222" },
+                        { id: 1, children: [new Paragraph("reply")], parentId: 0, durableId: "33334444" },
+                    ],
+                },
+                sections: [],
+            });
+
+            expect(doc.CommentsIds).to.not.be.undefined;
         });
 
         it("should create CommentsIds and CommentsExtensible whenever comments exist", () => {
@@ -495,6 +563,72 @@ describe("File", () => {
             expect(doc.FootNotes).to.not.be.undefined;
             expect(doc.Settings).to.not.be.undefined;
             expect(doc.Comments).to.not.be.undefined;
+            expect(doc.Theme).to.not.be.undefined;
+        });
+    });
+
+    describe("#theme", () => {
+        it("should write a theme with the given colors and fonts, and a relationship to it after the headers' and footers'", () => {
+            const doc = new File({
+                theme: { name: "Forest", colors: { accent1: "2E7D32" }, fonts: { headings: "Georgia" } },
+                sections: [{ headers: { default: new Header() }, footers: { default: new Footer() }, children: [] }],
+            });
+
+            const relationships = new Formatter().format(doc.Document.Relationships)["Relationships"];
+            const ids = relationships
+                .slice(1)
+                .map(({ Relationship }: { readonly Relationship: { readonly _attr: object } }) => Relationship._attr);
+            expect(ids.slice(-3)).to.deep.equal([
+                {
+                    Id: "rId6",
+                    Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header",
+                    Target: "header1.xml",
+                },
+                {
+                    Id: "rId7",
+                    Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer",
+                    Target: "footer1.xml",
+                },
+                {
+                    Id: "rId8",
+                    Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme",
+                    Target: "theme/theme1.xml",
+                },
+            ]);
+
+            const theme = new Formatter().format(doc.Theme)["a:theme"];
+            expect(theme[0]._attr.name).to.equal("Forest");
+            const [colors, fonts] = theme[1]["a:themeElements"];
+            expect(colors["a:clrScheme"][5]).to.deep.equal({ "a:accent1": [{ "a:srgbClr": { _attr: { val: "2E7D32" } } }] });
+            expect(fonts["a:fontScheme"][1]["a:majorFont"][0]).to.deep.equal({ "a:latin": { _attr: { typeface: "Georgia" } } });
+        });
+
+        it("should write theme colors in text, borders and shading with the colors they come to in the document's theme", () => {
+            const doc = new File({
+                theme: { colors: { accent1: "2E7D32", light2: "EEF2F3" } },
+                sections: [
+                    {
+                        children: [
+                            new Paragraph({
+                                border: { bottom: { style: "single", size: 6, color: { theme: "accent1" } } },
+                                shading: { type: "clear", fill: { theme: "light2" } },
+                                children: [new TextRun({ text: "Green", color: { theme: "accent1", darker: 25 } })],
+                            }),
+                        ],
+                    },
+                ],
+            });
+
+            const xml = JSON.stringify(new Formatter().format(doc.Document.View, { file: doc, viewWrapper: doc.Document, stack: [] }));
+            expect(xml).to.include(
+                JSON.stringify({ "w:color": { _attr: { "w:val": "225D25", "w:themeColor": "accent1", "w:themeShade": "BF" } } }),
+            );
+            expect(xml).to.include(
+                JSON.stringify({ "w:bottom": { _attr: { "w:val": "single", "w:color": "2E7D32", "w:themeColor": "accent1", "w:sz": 6 } } }),
+            );
+            expect(xml).to.include(
+                JSON.stringify({ "w:shd": { _attr: { "w:fill": "EEF2F3", "w:themeFill": "light2", "w:val": "clear" } } }),
+            );
         });
     });
 
@@ -554,6 +688,10 @@ describe("File", () => {
                         <w:style w:type="paragraph" w:styleId="Heading1">
                             <w:name w:val="heading 1"/>
                         </w:style>
+                        <w:style w:type="paragraph" w:styleId="Title">
+                            <w:name w:val="Title"/>
+                        </w:style>
+                        <w:docDefaults><w:rPrDefault/></w:docDefaults>
                     </w:styles>`,
                 styles: {
                     default: {
@@ -566,7 +704,45 @@ describe("File", () => {
                 },
             });
 
-            expect(doc.Styles).to.not.be.undefined;
+            const tree = new Formatter().format(doc.Styles)["w:styles"];
+            const names = tree.map((child: object) => Object.keys(child)[0]);
+            const ids = tree.map(
+                (child: { readonly "w:style"?: readonly { readonly _attr?: Record<string, string> }[] }) =>
+                    child["w:style"]?.find((part) => part._attr)?._attr?.["w:styleId"],
+            );
+
+            // The external document defaults take the place of docx's, and come first
+            expect(names.filter((name: string) => name === "w:docDefaults")).to.have.length(1);
+            expect(tree[1]).to.deep.equal({ "w:docDefaults": [{ "w:rPrDefault": {} }] });
+            // The external Title takes the place of docx's
+            expect(ids.filter((id: string) => id === "Title")).to.have.length(1);
+            expect(tree[ids.indexOf("Title")]).to.deep.equal({
+                "w:style": [{ _attr: { "w:type": "paragraph", "w:styleId": "Title" } }, { "w:name": { _attr: { "w:val": "Title" } } }],
+            });
+            // The Heading1 given in styles.default takes the place of the external one, and docx's styles fill in the rest
+            expect(ids.filter((id: string) => id === "Heading1")).to.have.length(1);
+            expect(tree[ids.indexOf("Heading1")]).to.deep.equal(
+                new Formatter().format(createDefaultStyles({ heading1: { run: { size: 28 } } }).heading1),
+            );
+            expect(ids).to.include("Heading2");
+        });
+
+        it("should replace the external document defaults with those given in styles.default", () => {
+            const doc = new File({
+                sections: [],
+                externalStyles: `
+                    <w:styles xmlns:w="main">
+                        <w:docDefaults><w:rPrDefault/></w:docDefaults>
+                    </w:styles>`,
+                styles: { default: { document: { run: { font: "Arial" } } } },
+            });
+
+            const tree = new Formatter().format(doc.Styles)["w:styles"];
+            const defaults = tree.filter((child: object) => "w:docDefaults" in child);
+            expect(defaults).to.deep.equal([
+                new Formatter().format(createDefaultStyles({ document: { run: { font: "Arial" } } }).document),
+            ]);
+            expect(tree[1]).to.deep.equal(defaults[0]);
         });
     });
 

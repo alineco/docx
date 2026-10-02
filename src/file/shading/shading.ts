@@ -26,19 +26,19 @@
  *
  * @module
  */
-import { BuilderElement, type XmlComponent } from "@file/xml-components";
-import { hexColorValue } from "@util/values";
+import { COLOR_ATTRIBUTES, type ThemeColor, createColorElement } from "@file/theme/theme-color";
+import type { XmlComponent } from "@file/xml-components";
 
 /**
  * Properties for configuring shading.
  *
- * @property fill - Background fill color in hex format (e.g., "FF0000" for red)
- * @property color - Pattern color in hex format
- * @property type - Shading pattern type
+ * @property fill - Background fill color in hex format (e.g., "FF0000" for red), or a color of the document's theme
+ * @property color - Pattern color in hex format, or a color of the document's theme
+ * @property type - Shading pattern type. Without one, the shading is clear: the fill color only
  */
 export type IShadingAttributesProperties = {
-    readonly fill?: string;
-    readonly color?: string;
+    readonly fill?: string | ThemeColor;
+    readonly color?: string | ThemeColor;
     readonly type?: (typeof ShadingType)[keyof typeof ShadingType];
 };
 
@@ -51,14 +51,12 @@ export type IShadingAttributesProperties = {
  * Reference: http://officeopenxml.com/WPshading.php
  */
 export const createShading = ({ fill, color, type }: IShadingAttributesProperties): XmlComponent =>
-    new BuilderElement<IShadingAttributesProperties>({
-        name: "w:shd",
-        attributes: {
-            fill: { key: "w:fill", value: fill === undefined ? undefined : hexColorValue(fill) },
-            color: { key: "w:color", value: color === undefined ? undefined : hexColorValue(color) },
-            type: { key: "w:val", value: type },
-        },
-    });
+    createColorElement("w:shd", [
+        { keys: { color: "w:fill", theme: "w:themeFill", tint: "w:themeFillTint", shade: "w:themeFillShade" }, color: fill },
+        { keys: COLOR_ATTRIBUTES, color },
+        // w:val is required. Without a pattern, the shading is clear: the fill color only, as Word writes it
+        { key: "w:val", value: type ?? ShadingType.CLEAR },
+    ]);
 
 /**
  * Shading pattern types.

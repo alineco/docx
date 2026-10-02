@@ -2,8 +2,8 @@
 
 > Instead of adding a `TextRun` into a `Paragraph`, you can also add an `InsertedTextRun` or `DeletedTextRun` where you need to supply an `id`, `author` and `date` for the change.
 
-```ts
-import { Paragraph, TextRun, InsertedTextRun, DeletedTextRun } from "docx";
+```ts live
+import { Document, Paragraph, TextRun, InsertedTextRun, DeletedTextRun } from "docx";
 
 const paragraph = new Paragraph({
     children: [
@@ -25,12 +25,20 @@ const paragraph = new Paragraph({
         }),
     ],
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [paragraph],
+        },
+    ],
+});
 ```
 
 Note that for a `InsertedTextRun` and `DeletedTextRun`, it is not possible to simply call it with only a text as in `new TextRun("some text")`, since the additional fields for change tracking need to be provided. Similar to a normal `TextRun` you can add additional text properties.
 
-```ts
-import { Paragraph, TextRun, InsertedTextRun, DeletedTextRun } from "docx";
+```ts live
+import { Document, Paragraph, TextRun, DeletedTextRun } from "docx";
 
 const paragraph = new Paragraph({
     children: [
@@ -46,33 +54,60 @@ const paragraph = new Paragraph({
         }),
     ],
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [paragraph],
+        },
+    ],
+});
 ```
 
 In addition to marking text as inserted or deleted, change tracking can also be added via the document settings. This will enable new changes to be tracked as well.
 
-```ts
-import { Document } from "docx";
+```ts live
+import { Document, Paragraph } from "docx";
 
 const doc = new Document({
     features: {
         trackRevisions: true,
     },
+    sections: [
+        {
+            children: [new Paragraph("Changes made to this document in Word are tracked.")],
+        },
+    ],
 });
 ```
 
 If you want to express a style changes, you can add a `revision` to a `TextRun` which need to include all previous style attributes.
 
-```ts
-new TextRun({
-    bold: true,
-    text: "This text is now bold and was previously not",
-    revision: {
-        id: 1,
-        author: "Firstname Lastname",
-        date: "2020-10-06T09:05:00Z",
-        bold: false,
-    },
-}).break();
+```ts live
+import { Document, Paragraph, TextRun } from "docx";
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            bold: true,
+                            text: "This text is now bold and was previously not",
+                            revision: {
+                                id: 1,
+                                author: "Firstname Lastname",
+                                date: "2020-10-06T09:05:00Z",
+                                bold: false,
+                            },
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
 ```
 
 ## Nested Revisions (Insertion then Deletion)
@@ -107,8 +142,8 @@ const paragraph = new Paragraph({
 
 You can track changes to paragraph properties (such as alignment, spacing, indentation, borders, heading level, etc.) by adding a `revision` property directly to the `Paragraph` options. The revision must include all previous property values.
 
-```ts
-import { Paragraph, AlignmentType, HeadingLevel } from "docx";
+```ts live
+import { Document, Paragraph, AlignmentType, HeadingLevel } from "docx";
 
 const paragraph = new Paragraph({
     text: "This paragraph has changed alignment and heading",
@@ -128,13 +163,21 @@ const paragraph = new Paragraph({
         },
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [paragraph],
+        },
+    ],
+});
 ```
 
 ## Section Properties Revisions
 
 You can track changes to section properties (such as page size, margins, text direction, columns, vertical alignment, title page, etc.) by adding a `revision` property to the section `properties` object. The revision must include all previous property values.
 
-```ts
+```ts live
 import { Document, Paragraph, TextRun, PageTextDirectionType } from "docx";
 
 const doc = new Document({
@@ -181,8 +224,8 @@ const doc = new Document({
 
 You can track changes to table properties (such as alignment, borders, width, etc.) by adding a `revision` property to the `Table` options. The revision must include all previous property values.
 
-```ts
-import { Table, TableRow, TableCell, Paragraph, AlignmentType } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph, AlignmentType } from "docx";
 
 const table = new Table({
     rows: [
@@ -202,14 +245,22 @@ const table = new Table({
         alignment: AlignmentType.RIGHT,
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [table],
+        },
+    ],
+});
 ```
 
 ### Table Column Widths Revisions
 
 You can track changes to table column widths by providing a `columnWidthsRevision` property. This tracks changes to the grid column widths.
 
-```ts
-import { Table, TableRow, TableCell, Paragraph } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph } from "docx";
 
 const table = new Table({
     rows: [
@@ -230,6 +281,14 @@ const table = new Table({
         columnWidths: [1000, 555],
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [table],
+        },
+    ],
+});
 ```
 
 ## Table Row Revisions
@@ -238,8 +297,8 @@ const table = new Table({
 
 To mark a table row as inserted, use the `insertion` property in the `TableRow` options. In addition, the text content within the row must also be marked as inserted using the paragraph `run.insertion` property (or by using `InsertedTextRun`). Both are required for Microsoft Word to display the insertion correctly.
 
-```ts
-import { TableRow, TableCell, Paragraph } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph, TextRun } from "docx";
 
 const row = new TableRow({
     children: [
@@ -264,14 +323,26 @@ const row = new TableRow({
         date: "2020-10-06T09:00:00Z",
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Table({
+                    rows: [new TableRow({ children: [new TableCell({ children: [new Paragraph("Existing row")] })] }), row],
+                }),
+            ],
+        },
+    ],
+});
 ```
 
 ### Deleted Table Rows
 
 To mark a table row as deleted, use the `deletion` property in the `TableRow` options. In addition, the text content within the row must also be marked as deleted using the paragraph `run.deletion` property (or by using `DeletedTextRun`). Both are required for Microsoft Word to display the deletion correctly.
 
-```ts
-import { TableRow, TableCell, Paragraph } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph, TextRun } from "docx";
 
 const row = new TableRow({
     children: [
@@ -296,14 +367,26 @@ const row = new TableRow({
         date: "2020-10-06T09:00:00Z",
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Table({
+                    rows: [new TableRow({ children: [new TableCell({ children: [new Paragraph("Existing row")] })] }), row],
+                }),
+            ],
+        },
+    ],
+});
 ```
 
 ### Table Row Properties Revisions
 
 You can track changes to table row properties (such as height, table header, cant split, etc.) by adding a `revision` property. The revision must include all previous property values.
 
-```ts
-import { TableRow, TableCell, Paragraph, HeightRule, CellSpacingType } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph, HeightRule } from "docx";
 
 const row = new TableRow({
     children: [
@@ -327,6 +410,14 @@ const row = new TableRow({
         tableHeader: true,
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [new Table({ rows: [row] })],
+        },
+    ],
+});
 ```
 
 ## Table Cell Revisions
@@ -335,8 +426,8 @@ const row = new TableRow({
 
 To mark a table cell as inserted, use the `insertion` property in the `TableCell` options. As with table rows, the text content within the cell must also be marked as inserted using the paragraph `run.insertion` property (or by using `InsertedTextRun`). Both are required for Microsoft Word to display the insertion correctly.
 
-```ts
-import { TableCell, Paragraph } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph, TextRun } from "docx";
 
 const cell = new TableCell({
     children: [
@@ -357,14 +448,26 @@ const cell = new TableCell({
         date: "2020-10-06T09:00:00Z",
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Table({
+                    rows: [new TableRow({ children: [new TableCell({ children: [new Paragraph("Existing cell")] }), cell] })],
+                }),
+            ],
+        },
+    ],
+});
 ```
 
 ### Deleted Table Cells
 
 To mark a table cell as deleted, use the `deletion` property in the `TableCell` options. As with table rows, the text content within the cell must also be marked as deleted using the paragraph `run.deletion` property (or by using `DeletedTextRun`). Both are required for Microsoft Word to display the deletion correctly.
 
-```ts
-import { TableCell, Paragraph } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph, TextRun } from "docx";
 
 const cell = new TableCell({
     children: [
@@ -385,14 +488,26 @@ const cell = new TableCell({
         date: "2020-10-06T09:00:00Z",
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Table({
+                    rows: [new TableRow({ children: [new TableCell({ children: [new Paragraph("Existing cell")] }), cell] })],
+                }),
+            ],
+        },
+    ],
+});
 ```
 
 ### Table Cell Properties Revisions
 
 You can track changes to table cell properties (such as vertical alignment, text direction, borders, shading, etc.) by adding a `revision` property. The revision must include all previous property values.
 
-```ts
-import { TableCell, Paragraph, VerticalAlignTable, TextDirection } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph, VerticalAlignTable, TextDirection } from "docx";
 
 const cell = new TableCell({
     children: [new Paragraph("Cell content")],
@@ -406,14 +521,22 @@ const cell = new TableCell({
         textDirection: TextDirection.LEFT_TO_RIGHT_TOP_TO_BOTTOM,
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [new Table({ rows: [new TableRow({ children: [cell] })] })],
+        },
+    ],
+});
 ```
 
 ### Cell Merge Revisions
 
 You can track changes to cell merging (vertical merge) by using the `cellMerge` property.
 
-```ts
-import { TableCell, Paragraph } from "docx";
+```ts live
+import { Document, Table, TableRow, TableCell, Paragraph } from "docx";
 
 const cell = new TableCell({
     children: [new Paragraph("Merged cell")],
@@ -424,10 +547,94 @@ const cell = new TableCell({
         verticalMerge: "cont", // or "restart"
     },
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Table({
+                    rows: [
+                        new TableRow({ children: [new TableCell({ children: [new Paragraph("Cell above")] })] }),
+                        new TableRow({ children: [cell] }),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
 ```
+
+## Image Revisions
+
+You can mark an `ImageRun` as inserted or deleted by passing an `insertion` or `deletion` property. This wraps the image run in a `<w:ins>` or `<w:del>` element so that Word displays it as a tracked change.
+
+```ts live
+import { Document, ImageRun, Paragraph, TextRun } from "docx";
+import * as fs from "fs";
+
+const doc = new Document({
+    features: {
+        trackRevisions: true,
+    },
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new TextRun("Inserted image: "),
+                        new ImageRun({
+                            type: "png",
+                            data: fs.readFileSync("./demo/assets/images/dog.png"),
+                            transformation: { width: 120, height: 120 },
+                            insertion: {
+                                id: 30,
+                                author: "Firstname Lastname",
+                                date: "2020-10-06T09:00:00Z",
+                            },
+                        }),
+                    ],
+                }),
+                new Paragraph({
+                    children: [
+                        new TextRun("Deleted image: "),
+                        new ImageRun({
+                            type: "png",
+                            data: fs.readFileSync("./demo/assets/images/dog.png"),
+                            transformation: { width: 120, height: 120 },
+                            deletion: {
+                                id: 31,
+                                author: "Firstname Lastname",
+                                date: "2020-10-06T09:00:00Z",
+                            },
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
+```
+
+The `insertion` and `deletion` options accept the same properties as text track changes:
+
+| Property | Type     | Notes    | Description                      |
+| -------- | -------- | -------- | -------------------------------- |
+| id       | `number` | Required | Unique revision ID               |
+| author   | `string` | Required | Author of the change             |
+| date     | `string` | Required | ISO 8601 timestamp of the change |
+
+?> An `ImageRun` with both `insertion` and `deletion` was inserted and then deleted, such as by another author: its run is in a `<w:del>` inside the `<w:ins>`. If neither is provided, the image renders normally without track change markup.
 
 ## Demo
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/60-track-revisions.ts ":include")
+### Track Revisions (Text)
 
-_Source: https://github.com/dolanmiu/docx/blob/master/demo/60-track-revisions.ts_
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/track-changes/track-revisions.ts ":include")
+
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/track-changes/track-revisions.ts_
+
+### Track Change Images
+
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/track-changes/track-image-revisions.ts ":include")
+
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/track-changes/track-image-revisions.ts_

@@ -13,6 +13,7 @@ import { encodeUtf8 } from "@util/convenience-functions";
 import { Formatter } from "../formatter";
 import { ImageReplacer } from "./image-replacer";
 import { NumberingReplacer } from "./numbering-replacer";
+import { type PackagePartFile, xmlifyPackageParts } from "./package-part-writer";
 import type { PrettifyType } from "./packer";
 
 /**
@@ -83,6 +84,10 @@ type IXmlifyedFileMapping = {
     readonly FontTable?: IXmlifyedFile;
     /** Font table relationships (word/_rels/fontTable.xml.rels) */
     readonly FontTableRelationships?: IXmlifyedFile;
+    /** Theme (word/theme/theme1.xml) */
+    readonly Theme: IXmlifyedFile;
+    /** Parts added by the document's content, such as charts (word/charts/chart1.xml), and their relationships */
+    readonly PackageParts: readonly PackagePartFile[];
 };
 
 /**
@@ -135,7 +140,7 @@ export class Compiler {
         overrides: readonly IXmlifyedFile[] = [],
     ): JSZip {
         const zip = new JSZip();
-        const xmlifiedFileMapping = this.xmlifyFile(file, prettifyXml);
+        const { PackageParts: packageParts, ...xmlifiedFileMapping } = this.xmlifyFile(file, prettifyXml);
         const map = new Map<string, IXmlifyedFile | readonly IXmlifyedFile[]>(Object.entries(xmlifiedFileMapping));
 
         for (const [, obj] of map) {
@@ -146,6 +151,10 @@ export class Compiler {
             } else {
                 zip.file((obj as IXmlifyedFile).path, encodeUtf8((obj as IXmlifyedFile).data));
             }
+        }
+
+        for (const { path, data } of packageParts) {
+            zip.file(path, typeof data === "string" ? encodeUtf8(data) : data);
         }
 
         for (const subFile of overrides) {
@@ -161,9 +170,12 @@ export class Compiler {
             }
         }
 
-        for (const { data: buffer, name, fontKey } of file.FontTable.fontOptionsWithKey) {
-            const [nameWithoutExtension] = name.split(".");
-            zip.file(`word/fonts/${nameWithoutExtension}.odttf`, obfuscate(buffer, fontKey));
+        // Sequential filenames (font1.odttf, font2.odttf, …) — must match the
+        // Target paths set in FontWrapper. Word rejects embedded-font paths
+        // containing spaces or non-ASCII when those characters appear in the
+        // package zip entry; see https://github.com/dolanmiu/docx/issues/3019.
+        for (const [i, { data: buffer, fontKey }] of file.FontTable.fontOptionsWithKey.entries()) {
+            zip.file(`word/fonts/font${i + 1}.odttf`, obfuscate(buffer, fontKey));
         }
 
         return zip;
@@ -470,22 +482,6 @@ export class Compiler {
                     path: `word/footer${index + 1}.xml`,
                 };
             }),
-            ContentTypes: {
-                data: xml(
-                    this.formatter.format(file.ContentTypes, {
-                        viewWrapper: file.Document,
-                        file,
-                        stack: [],
-                    }),
-                    {
-                        indent: prettify,
-                        declaration: {
-                            encoding: "UTF-8",
-                        },
-                    },
-                ),
-                path: "[Content_Types].xml",
-            },
             CustomProperties: {
                 data: xml(
                     this.formatter.format(file.CustomProperties, {
@@ -602,42 +598,46 @@ export class Compiler {
                 ),
                 path: "word/settings.xml",
             },
-            Comments: {
-                data: (() => {
-                    const xmlData = this.imageReplacer.replace(commentXmlData, commentMediaDatas, commentRelationshipCount);
-                    const referenedXmlData = this.numberingReplacer.replace(xmlData, file.Numbering.ConcreteNumbering);
-                    return referenedXmlData;
-                })(),
-                path: "word/comments.xml",
-            },
-            CommentsRelationships: {
-                data: (() => {
-                    commentMediaDatas.forEach((mediaData, i) => {
-                        file.Comments.Relationships.addRelationship(
-                            commentRelationshipCount + i,
-                            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
-                            `media/${mediaData.fileName}`,
-                        );
-                    });
-                    return xml(
-                        this.formatter.format(file.Comments.Relationships, {
-                            viewWrapper: {
-                                View: file.Comments,
-                                Relationships: file.Comments.Relationships,
-                            },
-                            file,
-                            stack: [],
-                        }),
-                        {
-                            indent: prettify,
-                            declaration: {
-                                encoding: "UTF-8",
-                            },
-                        },
-                    );
-                })(),
-                path: "word/_rels/comments.xml.rels",
-            },
+            ...(file.Comments.IsEmpty
+                ? {}
+                : {
+                      Comments: {
+                          data: (() => {
+                              const xmlData = this.imageReplacer.replace(commentXmlData, commentMediaDatas, commentRelationshipCount);
+                              const referenedXmlData = this.numberingReplacer.replace(xmlData, file.Numbering.ConcreteNumbering);
+                              return referenedXmlData;
+                          })(),
+                          path: "word/comments.xml",
+                      },
+                      CommentsRelationships: {
+                          data: (() => {
+                              commentMediaDatas.forEach((mediaData, i) => {
+                                  file.Comments.Relationships.addRelationship(
+                                      commentRelationshipCount + i,
+                                      "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
+                                      `media/${mediaData.fileName}`,
+                                  );
+                              });
+                              return xml(
+                                  this.formatter.format(file.Comments.Relationships, {
+                                      viewWrapper: {
+                                          View: file.Comments,
+                                          Relationships: file.Comments.Relationships,
+                                      },
+                                      file,
+                                      stack: [],
+                                  }),
+                                  {
+                                      indent: prettify,
+                                      declaration: {
+                                          encoding: "UTF-8",
+                                      },
+                                  },
+                              );
+                          })(),
+                          path: "word/_rels/comments.xml.rels",
+                      },
+                  }),
             ...(file.CommentsExtended
                 ? {
                       CommentsExtended: {
@@ -743,6 +743,42 @@ export class Compiler {
                         },
                     ))(),
                 path: "word/_rels/fontTable.xml.rels",
+            },
+            Theme: {
+                data: xml(
+                    this.formatter.format(file.Theme, {
+                        viewWrapper: file.Document,
+                        file,
+                        stack: [],
+                    }),
+                    {
+                        indent: prettify,
+                        declaration: {
+                            standalone: "yes",
+                            encoding: "UTF-8",
+                        },
+                    },
+                ),
+                path: "word/theme/theme1.xml",
+            },
+            // After every part that can refer to them, which adds them to the package as it is written
+            PackageParts: xmlifyPackageParts(file, prettify),
+            // Last, as parts are added to the package, with their content types, while the others are written
+            ContentTypes: {
+                data: xml(
+                    this.formatter.format(file.ContentTypes, {
+                        viewWrapper: file.Document,
+                        file,
+                        stack: [],
+                    }),
+                    {
+                        indent: prettify,
+                        declaration: {
+                            encoding: "UTF-8",
+                        },
+                    },
+                ),
+                path: "[Content_Types].xml",
             },
         };
     }

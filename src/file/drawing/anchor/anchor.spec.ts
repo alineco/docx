@@ -1,6 +1,7 @@
-import { assert, describe, expect, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Formatter } from "@export/formatter";
+import * as convenienceFunctions from "@util/convenience-functions";
 import { Utility } from "tests/utility";
 
 import type { IDrawingOptions } from "../drawing";
@@ -38,6 +39,14 @@ const createAnchor = (drawingOptions: IDrawingOptions): Anchor =>
     });
 
 describe("Anchor", () => {
+    beforeEach(() => {
+        vi.spyOn(convenienceFunctions, "docPropertiesUniqueNumericId").mockReturnValue(1);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     let anchor: Anchor;
 
     describe("#constructor()", () => {
@@ -191,7 +200,28 @@ describe("Anchor", () => {
             assert.equal(textWrap.rootKey, "wp:wrapTight");
         });
 
-        it("should create a Drawing with tight text wrapping", () => {
+        it("should create a Drawing with through text wrapping", () => {
+            anchor = createAnchor({
+                floating: {
+                    horizontalPosition: {
+                        offset: 0,
+                    },
+                    verticalPosition: {
+                        offset: 0,
+                    },
+                    wrap: {
+                        type: TextWrappingType.THROUGH,
+                    },
+                },
+            });
+            const newJson = Utility.jsonify(anchor);
+            assert.equal(newJson.root.length, 10);
+
+            const textWrap = newJson.root[6];
+            assert.equal(textWrap.rootKey, "wp:wrapThrough");
+        });
+
+        it("should create a Drawing with top and bottom text wrapping", () => {
             anchor = createAnchor({
                 floating: {
                     verticalPosition: {

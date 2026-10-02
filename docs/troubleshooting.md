@@ -4,14 +4,16 @@ This guide covers common issues and their solutions when working with docx.
 
 ## Quick Index
 
-| Symptom                  | Go to                                      |
-| ------------------------ | ------------------------------------------ |
-| File corrupt/won't open  | [Document Won't Open](#document-wont-open) |
-| Images appear blank      | [Images Not Showing](#images-not-showing)  |
-| Buffer not defined error | [Browser Issues](#browser-issues)          |
-| Table cells misaligned   | [Table Issues](#table-issues)              |
-| Styles not applying      | [Styling Issues](#styling-issues)          |
-| Memory errors            | [Memory Issues](#memory-issues)            |
+| Symptom                             | Go to                                      |
+| ----------------------------------- | ------------------------------------------ |
+| File corrupt/won't open             | [Document Won't Open](#document-wont-open) |
+| Unreadable content with custom font | [Document Won't Open](#document-wont-open) |
+| Images appear blank                 | [Images Not Showing](#images-not-showing)  |
+| Buffer not defined error            | [Browser Issues](#browser-issues)          |
+| Table cells misaligned              | [Table Issues](#table-issues)              |
+| Styles not applying                 | [Styling Issues](#styling-issues)          |
+| Embedded font charset ignored       | [Styling Issues](#styling-issues)          |
+| Memory errors                       | [Memory Issues](#memory-issues)            |
 
 ## Document Won't Open
 
@@ -42,9 +44,7 @@ fs.writeFileSync("document.docx", buffer);
 
 ```ts
 app.get("/download", async (req, res) => {
-    const doc = new Document({
-        /* ... */
-    });
+    const doc = new Document({/* ... */});
     const buffer = await Packer.toBuffer(doc);
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
@@ -52,6 +52,12 @@ app.get("/download", async (req, res) => {
     res.send(buffer);
 });
 ```
+
+### "Word found unreadable content" with embedded fonts
+
+**Cause:** In older versions of docx (&lt; 9.x), embedded fonts whose family name contained spaces or non-ASCII characters produced zip entries with those characters in the path. Word expects embedded-font paths to be plain ASCII filenames.
+
+**Solution:** Upgrade to docx 9.x or later. The library now writes embedded fonts as sequential filenames (`font1.odttf`, `font2.odttf`, …) which avoids the issue entirely. No code changes are needed — any `name` you pass to the `fonts` array continues to work as before.
 
 ### "We're sorry. We can't open document.docx"
 
@@ -61,20 +67,48 @@ app.get("/download", async (req, res) => {
 
 1. Check for invalid characters in text content:
 
-```ts
+```ts live
+import { Document, Paragraph, TextRun } from "docx";
+
+const text = "Text pasted from somewhere else,\x07 with a control character in it";
+
 // Remove control characters
 const cleanText = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
-new TextRun(cleanText);
+
+const doc = new Document({
+    sections: [
+        {
+            children: [new Paragraph({ children: [new TextRun(cleanText)] })],
+        },
+    ],
+});
 ```
 
 2. Ensure all required properties are provided:
 
-```ts
-// ImageRun requires type, data, and transformation
-new ImageRun({
-    type: "png",
-    data: buffer,
-    transformation: { width: 100, height: 100 }, // Required!
+```ts live
+import { Document, ImageRun, Paragraph } from "docx";
+import * as fs from "fs";
+
+const buffer = fs.readFileSync("./demo/assets/images/dog.png");
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        // ImageRun requires type, data, and transformation
+                        new ImageRun({
+                            type: "png",
+                            data: buffer,
+                            transformation: { width: 100, height: 100 }, // Required!
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
 });
 ```
 
@@ -88,12 +122,27 @@ new ImageRun({
 
 1. Verify the image type matches the file:
 
-```ts
-// Match type to actual file format
-new ImageRun({
-    type: "png", // Must match the actual image format
-    data: fs.readFileSync("image.png"),
-    transformation: { width: 100, height: 100 },
+```ts live
+import { Document, ImageRun, Paragraph } from "docx";
+import * as fs from "fs";
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        // Match type to actual file format
+                        new ImageRun({
+                            type: "gif", // Must match the actual image format
+                            data: fs.readFileSync("./demo/assets/images/pizza.gif"),
+                            transformation: { width: 100, height: 100 },
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
 });
 ```
 
@@ -163,22 +212,32 @@ Packer.toBlob(doc).then((blob) => {
 
 **Solution:**
 
-```ts
-new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-        new TableRow({
+```ts live
+import { Document, Paragraph, Table, TableCell, TableRow, WidthType } from "docx";
+
+const doc = new Document({
+    sections: [
+        {
             children: [
-                new TableCell({
-                    width: { size: 50, type: WidthType.PERCENTAGE },
-                    children: [new Paragraph("Cell 1")],
-                }),
-                new TableCell({
-                    width: { size: 50, type: WidthType.PERCENTAGE },
-                    children: [new Paragraph("Cell 2")],
+                new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    rows: [
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    width: { size: 50, type: WidthType.PERCENTAGE },
+                                    children: [new Paragraph("Cell 1")],
+                                }),
+                                new TableCell({
+                                    width: { size: 50, type: WidthType.PERCENTAGE },
+                                    children: [new Paragraph("Cell 2")],
+                                }),
+                            ],
+                        }),
+                    ],
                 }),
             ],
-        }),
+        },
     ],
 });
 ```
@@ -189,18 +248,44 @@ new Table({
 
 **Solution:**
 
-```ts
-// Horizontal merge
-new TableCell({
-    columnSpan: 2,  // Span 2 columns
-    children: [new Paragraph("Merged horizontally")],
-}),
+```ts live
+import { Document, Paragraph, Table, TableCell, TableRow } from "docx";
 
-// Vertical merge
-new TableCell({
-    rowSpan: 2,  // Span 2 rows
-    children: [new Paragraph("Merged vertically")],
-}),
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Table({
+                    rows: [
+                        new TableRow({
+                            children: [
+                                // Horizontal merge
+                                new TableCell({
+                                    columnSpan: 2, // Span 2 columns
+                                    children: [new Paragraph("Merged horizontally")],
+                                }),
+                            ],
+                        }),
+                        new TableRow({
+                            children: [
+                                // Vertical merge
+                                new TableCell({
+                                    rowSpan: 2, // Span 2 rows
+                                    children: [new Paragraph("Merged vertically")],
+                                }),
+                                new TableCell({ children: [new Paragraph("Row 2")] }),
+                            ],
+                        }),
+                        new TableRow({
+                            // The first column of this row is the merged cell above
+                            children: [new TableCell({ children: [new Paragraph("Row 3")] })],
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
 ```
 
 ## Styling Issues
@@ -211,7 +296,9 @@ new TableCell({
 
 **Solution:**
 
-```ts
+```ts live
+import { Document, Paragraph } from "docx";
+
 const doc = new Document({
     styles: {
         paragraphStyles: [
@@ -246,15 +333,45 @@ const doc = new Document({
 
 **Solution:** Embed the font:
 
+```ts live
+import { CharacterSet, Document, Paragraph, TextRun } from "docx";
+import * as fs from "fs";
+
+const doc = new Document({
+    fonts: [
+        {
+            name: "Pacifico",
+            data: fs.readFileSync("./demo/assets/Pacifico.ttf"),
+            characterSet: CharacterSet.ANSI,
+        },
+    ],
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [new TextRun({ text: "Written in the embedded font", font: "Pacifico" })],
+                }),
+            ],
+        },
+    ],
+});
+```
+
+### Embedded font `characterSet` ignored (non-Latin text renders incorrectly)
+
+**Cause:** In versions prior to the fix in [#3387](https://github.com/dolanmiu/docx/pull/3387), the `characterSet` option was accepted but not written to `fontTable.xml`. This caused the `w:charset` element to be missing, so Word would fall back to a default encoding.
+
+**Solution:** Upgrade to the latest version of docx. The `characterSet` property is now correctly passed through to the font table. Ensure you specify the appropriate character set for your font:
+
 ```ts
 import { CharacterSet, Document } from "docx";
 
 const doc = new Document({
     fonts: [
         {
-            name: "CustomFont",
-            data: fs.readFileSync("./font.ttf"),
-            characterSet: CharacterSet.ANSI,
+            name: "MyJapaneseFont",
+            data: fs.readFileSync("./fonts/NotoSansJP.ttf"),
+            characterSet: CharacterSet.SHIFTJIS,
         },
     ],
     // ...
@@ -269,25 +386,28 @@ const doc = new Document({
 
 **Solution:**
 
-```ts
-// Apply headers to each section
-sections: [
-    {
-        headers: { default: myHeader },
-        footers: { default: myFooter },
-        children: [
-            /* ... */
-        ],
-    },
-    {
-        // New section inherits headers unless overridden
-        headers: { default: myHeader }, // Repeat if needed
-        footers: { default: myFooter },
-        children: [
-            /* ... */
-        ],
-    },
-];
+```ts live
+import { Document, Footer, Header, Paragraph } from "docx";
+
+const myHeader = new Header({ children: [new Paragraph("My header")] });
+const myFooter = new Footer({ children: [new Paragraph("My footer")] });
+
+const doc = new Document({
+    // Apply headers to each section
+    sections: [
+        {
+            headers: { default: myHeader },
+            footers: { default: myFooter },
+            children: [new Paragraph("The first section")],
+        },
+        {
+            // New section inherits headers unless overridden
+            headers: { default: myHeader }, // Repeat if needed
+            footers: { default: myFooter },
+            children: [new Paragraph("The second section")],
+        },
+    ],
+});
 ```
 
 ### Different first page header not working
@@ -296,21 +416,26 @@ sections: [
 
 **Solution:**
 
-```ts
-sections: [
-    {
-        properties: {
-            titlePage: true, // Required for different first page
+```ts live
+import { Document, Header, PageBreak, Paragraph, TextRun } from "docx";
+
+const normalHeader = new Header({ children: [new Paragraph("The header of every other page")] });
+const firstPageHeader = new Header({ children: [new Paragraph("The header of the first page")] });
+
+const doc = new Document({
+    sections: [
+        {
+            properties: {
+                titlePage: true, // Required for different first page
+            },
+            headers: {
+                default: normalHeader,
+                first: firstPageHeader, // Only shows with titlePage: true
+            },
+            children: [new Paragraph({ children: [new TextRun("The first page"), new PageBreak(), new TextRun("The second page")] })],
         },
-        headers: {
-            default: normalHeader,
-            first: firstPageHeader, // Only shows with titlePage: true
-        },
-        children: [
-            /* ... */
-        ],
-    },
-];
+    ],
+});
 ```
 
 ## Page Numbers
@@ -325,19 +450,32 @@ sections: [
 
 **Solution:**
 
-```ts
-import { PageNumber, NumberFormat } from "docx";
+```ts live
+import { Document, Footer, PageNumber, Paragraph, TextRun } from "docx";
 
-new Paragraph({
-    children: [
-        new TextRun("Page "),
-        new TextRun({
-            children: [PageNumber.CURRENT],
-        }),
-        new TextRun(" of "),
-        new TextRun({
-            children: [PageNumber.TOTAL_PAGES],
-        }),
+const doc = new Document({
+    sections: [
+        {
+            footers: {
+                default: new Footer({
+                    children: [
+                        new Paragraph({
+                            children: [
+                                new TextRun("Page "),
+                                new TextRun({
+                                    children: [PageNumber.CURRENT],
+                                }),
+                                new TextRun(" of "),
+                                new TextRun({
+                                    children: [PageNumber.TOTAL_PAGES],
+                                }),
+                            ],
+                        }),
+                    ],
+                }),
+            },
+            children: [new Paragraph("The footer has the page number")],
+        },
     ],
 });
 ```
@@ -352,12 +490,22 @@ new Paragraph({
 
 1. Set `updateFields: true` in document features:
 
-```ts
+```ts live
+import { Document, HeadingLevel, Paragraph, TableOfContents } from "docx";
+
 const doc = new Document({
     features: {
         updateFields: true,
     },
-    // ...
+    sections: [
+        {
+            children: [
+                new TableOfContents("Contents", { hyperlink: true, headingStyleRange: "1-3" }),
+                new Paragraph({ text: "Introduction", heading: HeadingLevel.HEADING_1 }),
+                new Paragraph({ text: "Getting started", heading: HeadingLevel.HEADING_2 }),
+            ],
+        },
+    ],
 });
 ```
 
@@ -395,10 +543,21 @@ const resized = await sharp(imagePath).resize(800, 600).toBuffer();
 
 **Solution:** Check the API documentation or TypeScript definitions:
 
-```ts
-// Use IntelliSense to see available options
-new Paragraph({
-    // Ctrl+Space in VS Code to see options
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                // Use IntelliSense to see available options
+                new Paragraph({
+                    // Ctrl+Space in VS Code, or here once you click the code, to see options
+                    text: "A paragraph",
+                }),
+            ],
+        },
+    ],
 });
 ```
 

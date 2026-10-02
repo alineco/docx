@@ -13,8 +13,11 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
             - uses: "./.github/actions/install-and-build"
+            # Fails if anything the last release exported has been removed or changed incompatibly
+            - name: Check the API against the last release
+              run: npm run check-api
             - name: Archive Production Artifact
               uses: actions/upload-artifact@v4
               with:
@@ -23,14 +26,18 @@ jobs:
     test:
         name: Test
         runs-on: ubuntu-latest
+        env:
+            CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
             - name: Install Dependencies
               run: npm ci --force
             - name: Test
               run: npm run test:ci
+            # The Aline fork has no Codecov token, and Codecov refuses uploads without one, so only upload when it's set
             - name: Codecov
+              if: env.CODECOV_TOKEN != ''
               uses: codecov/codecov-action@v4
               with:
                   fail_ci_if_error: true
@@ -42,7 +49,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
             - name: Install Dependencies
               run: npm ci --force
             - name: Lint
@@ -52,7 +59,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
             - name: Install Dependencies
               run: npm ci --force
             - name: Prettier
@@ -62,7 +69,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout Repo
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
             - name: Install Dependencies
               run: npm ci --force
             - name: CSpell

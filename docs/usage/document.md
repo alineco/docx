@@ -4,8 +4,10 @@
 
 To create a new document, it is very easy:
 
-```ts
-const doc = new docx.Document({
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
     sections: [
         {
             children: [new Paragraph("Hello World")],
@@ -18,15 +20,19 @@ const doc = new docx.Document({
 
 You can add metadata properties to the Word document:
 
-```ts
-const doc = new docx.Document({
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
     creator: "Dolan Miu",
     description: "My extremely interesting document",
     title: "My Document",
     subject: "Report",
     keywords: "report, annual, finance",
     sections: [
-        /* ... */
+        {
+            children: [new Paragraph("Hello World")],
+        },
     ],
 });
 ```
@@ -57,13 +63,14 @@ These properties appear in Word's File > Info panel and in file properties.
 
 ### Styling Options
 
-| Property       | Type                | Description              |
-| -------------- | ------------------- | ------------------------ |
-| styles         | `IStylesOptions`    | Custom styles            |
-| externalStyles | `string`            | External XML styles      |
-| numbering      | `INumberingOptions` | Numbering definitions    |
-| fonts          | `FontOptions[]`     | Embedded fonts           |
-| defaultTabStop | `number`            | Default tab stop (twips) |
+| Property       | Type                | Description                                                   |
+| -------------- | ------------------- | ------------------------------------------------------------- |
+| styles         | `IStylesOptions`    | Custom styles                                                 |
+| externalStyles | `string`            | External XML styles                                           |
+| numbering      | `INumberingOptions` | Numbering definitions                                         |
+| fonts          | `FontOptions[]`     | Embedded fonts                                                |
+| defaultTabStop | `number`            | Default tab stop (twips)                                      |
+| theme          | `IThemeOptions`     | The document's [theme](usage/themes.md): its colors and fonts |
 
 ### Document Behavior
 
@@ -107,27 +114,54 @@ These properties appear in Word's File > Info panel and in file properties.
 | defaultTabStop             | `number`                                                 | Optional |
 | fonts                      | ` FontOptions[]`                                         | Optional |
 | hyphenation                | `IHyphenationOptions`                                    | Optional |
+| theme                      | `IThemeOptions`                                          | Optional |
 
 ### Change background color of Document
 
 Set the hex value in the document like so:
 
-```ts
-const doc = new docx.Document({
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
     background: {
         color: "C45911",
     },
+    sections: [
+        {
+            children: [new Paragraph("Hello World")],
+        },
+    ],
 });
 ```
 
-You can mix and match whatever properties you want, or provide no properties.
+Or use a color of the document's theme, lighter or darker if you like, so the page changes color with the theme. See [Themes](usage/themes.md#text-tables-and-borders-in-the-themes-colors):
+
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
+    background: {
+        color: { theme: "accent2", lighter: 80 },
+    },
+    sections: [
+        {
+            children: [new Paragraph("Hello World")],
+        },
+    ],
+});
+```
+
+`themeColor`, `themeTint` and `themeShade` are deprecated: give `color` a theme color instead.
 
 ### Custom Properties
 
 Add custom metadata properties that appear in Word's document properties:
 
-```ts
-const doc = new docx.Document({
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
     customProperties: [
         {
             name: "Department",
@@ -139,37 +173,39 @@ const doc = new docx.Document({
         },
         {
             name: "Approved",
-            value: true,
+            value: "true",
         },
         {
             name: "Version",
-            value: 2.5,
+            value: "2.5",
         },
     ],
     sections: [
-        /* ... */
+        {
+            children: [new Paragraph("Hello World")],
+        },
     ],
 });
 ```
 
-Custom properties support these value types:
-
-- `string` - Text values
-- `number` - Numeric values
-- `boolean` - True/false values
+Custom property values are text (`string`), so write numbers and true/false values as text, as above.
 
 ### Document Features
 
 Enable special features like track changes or field updating:
 
-```ts
-const doc = new docx.Document({
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
     features: {
         trackRevisions: true, // Enable track changes
         updateFields: true, // Update fields (like TOC) when opened
     },
     sections: [
-        /* ... */
+        {
+            children: [new Paragraph("Hello World")],
+        },
     ],
 });
 ```
@@ -185,12 +221,19 @@ See [Lars Corneliussen's blog post](https://startbigthinksmall.wordpress.com/201
 
 Compatibility Settings are optional settings used to preserve visual fidelity of documents created in earlier word processing applications. Some of these settings provide ability for specific behaviors, described in detail below; and others simply instruct applications to mimic the behavior of an existing word processing application.
 
-```ts
-const doc = new docx.Document({
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
     compatibility: {
         version: 15,
         doNotExpandShiftReturn: true,
     },
+    sections: [
+        {
+            children: [new Paragraph("Hello World")],
+        },
+    ],
 });
 ```
 

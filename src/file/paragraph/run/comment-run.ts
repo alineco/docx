@@ -37,6 +37,11 @@ export type ICommentOptions = {
     readonly parentId?: number;
     /** Whether the comment thread is marked as resolved */
     readonly resolved?: boolean;
+    /**
+     * Stable comment id written to word/commentsIds.xml (w16cid:durableId). Preserved by Word across edits, unlike w:id.
+     * Defaults to an id derived from `id`.
+     */
+    readonly durableId?: string;
 };
 
 /**
@@ -103,6 +108,7 @@ class RootCommentsAttributes extends XmlAttributeComponent<{
     readonly "xmlns:wpi"?: string;
     readonly "xmlns:wne"?: string;
     readonly "xmlns:wps"?: string;
+    readonly "mc:Ignorable"?: string;
 }> {
     protected readonly xmlKeys = {
         "xmlns:cx": "xmlns:cx",
@@ -136,6 +142,7 @@ class RootCommentsAttributes extends XmlAttributeComponent<{
         "xmlns:wpi": "xmlns:wpi",
         "xmlns:wne": "xmlns:wne",
         "xmlns:wps": "xmlns:wps",
+        "mc:Ignorable": "mc:Ignorable",
     };
 }
 
@@ -284,6 +291,11 @@ export class Comment extends XmlComponent {
         }
     }
 
+    /**
+     * Serializes this comment to XML, injecting w14:paraId and w14:textId into the last
+     * paragraph. These attributes link the comment to its entries in commentsExtended.xml
+     * and commentsIds.xml.
+     */
     public prepForXml(context: IContext): IXmlableObject | undefined {
         const result = super.prepForXml(context);
         if (!result || !this.paraId) {
@@ -313,10 +325,57 @@ export class Comment extends XmlComponent {
 }
 
 /**
+ * Thread data for a single comment, used to build commentsExtended.xml.
+ */
+export type ICommentThreadData = {
+    /** 8-character uppercase hex identifier linking to w14:paraId on the comment's paragraph */
+    readonly paraId: string;
+    /** paraId of the parent comment for reply threading (maps to w15:paraIdParent) */
+    readonly parentParaId?: string;
+    /** Whether the thread is resolved (maps to w15:done: "1"/"0") */
+    readonly done?: boolean;
+};
+
+/**
+ * Mapping between a comment's paraId and its durableId, used to build commentsIds.xml.
+ */
+export type ICommentIdData = {
+    /** 8-character uppercase hex identifier linking to w14:paraId on the comment's paragraph */
+    readonly paraId: string;
+    /** Stable comment id preserved by Word across edits (maps to w16cid:durableId) */
+    readonly durableId: string;
+};
+
+/**
+ * Extended (w16cex) data for a single comment, used to build commentsExtensible.xml.
+ */
+export type ICommentExtensibleData = {
+    /** The comment's durableId, linking to its entry in commentsIds.xml */
+    readonly durableId: string;
+    /** UTC instant the comment was created (maps to w16cex:dateUtc) */
+    readonly dateUtc?: string;
+};
+
+/**
+ * Converts a comment ID to a deterministic 8-character uppercase hex paraId.
+ */
+export const commentIdToParaId = (id: number): string => (id + 1).toString(16).toUpperCase().padStart(8, "0");
+
+/**
+ * Converts a comment ID to a deterministic 8-character uppercase hex durableId.
+ *
+ * Offset by 0x10000000 to avoid collisions with paraId values.
+ */
+export const commentIdToDurableId = (id: number): string => (id + 0x10000001).toString(16).toUpperCase().padStart(8, "0");
+
+/**
  * Represents the comments container in a WordprocessingML document.
  *
  * This is the root element for the comments.xml file that stores all
- * comment definitions in the document.
+ * comment definitions in the document. Every comment also gets a paraId, a
+ * durableId and its UTC date, which back commentsIds.xml and commentsExtensible.xml.
+ * When any comment uses `parentId`, threading is activated and thread data is
+ * generated for commentsExtended.xml.
  *
  * Reference: http://officeopenxml.com/WPrun.php
  *
@@ -342,57 +401,24 @@ export class Comment extends XmlComponent {
  *     {
  *       id: 1,
  *       author: "Jane Smith",
- *       children: [new Paragraph("Second comment")],
+ *       parentId: 0,
+ *       children: [new Paragraph("Reply to first comment")],
  *     },
  *   ],
  * });
  * ```
  */
-/**
- * Thread data for a single comment, used to build commentsExtended.xml.
- */
-export type ICommentThreadData = {
-    readonly paraId: string;
-    readonly parentParaId?: string;
-    readonly done?: boolean;
-};
-
-/**
- * Mapping between a comment's paraId and its durableId, used to build commentsIds.xml.
- */
-export type ICommentIdData = {
-    readonly paraId: string;
-    readonly durableId: string;
-};
-
-/**
- * Extended (w16cex) data for a single comment, used to build commentsExtensible.xml.
- */
-export type ICommentExtensibleData = {
-    readonly durableId: string;
-    readonly dateUtc?: string;
-};
-
-/**
- * Converts a comment ID to a deterministic 8-character uppercase hex paraId.
- */
-export const commentIdToParaId = (id: number): string => (id + 1).toString(16).toUpperCase().padStart(8, "0");
-
-/**
- * Converts a comment ID to a deterministic 8-character uppercase hex durableId.
- *
- * Offset by 0x10000000 to avoid collisions with paraId values.
- */
-export const commentIdToDurableId = (id: number): string => (id + 0x10000001).toString(16).toUpperCase().padStart(8, "0");
-
 export class Comments extends XmlComponent {
     private readonly relationships: Relationships;
     private readonly threadData?: readonly ICommentThreadData[];
     private readonly commentIdData?: readonly ICommentIdData[];
     private readonly commentExtensibleData?: readonly ICommentExtensibleData[];
+    private readonly isEmpty: boolean;
 
     public constructor({ children }: ICommentsOptions) {
         super("w:comments");
+
+        this.isEmpty = children.length === 0;
 
         this.root.push(
             new RootCommentsAttributes({
@@ -427,6 +453,8 @@ export class Comments extends XmlComponent {
                 "xmlns:wpi": "http://schemas.microsoft.com/office/word/2010/wordprocessingInk",
                 "xmlns:wne": "http://schemas.microsoft.com/office/word/2006/wordml",
                 "xmlns:wps": "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+                // The comments' paragraphs have w14:paraId and w14:textId, which applications that don't know them skip
+                "mc:Ignorable": "w14 w15 wp14",
             }),
         );
 
@@ -439,7 +467,9 @@ export class Comments extends XmlComponent {
             }));
 
             const idToParaId = new Map<number, string>(resolvedChildren.map((child) => [child.id, commentIdToParaId(child.id)]));
-            const idToDurableId = new Map<number, string>(resolvedChildren.map((child) => [child.id, commentIdToDurableId(child.id)]));
+            const idToDurableId = new Map<number, string>(
+                resolvedChildren.map((child) => [child.id, child.durableId ?? commentIdToDurableId(child.id)]),
+            );
 
             for (const child of resolvedChildren) {
                 this.root.push(new Comment(child, idToParaId.get(child.id)));
@@ -472,15 +502,28 @@ export class Comments extends XmlComponent {
         return this.relationships;
     }
 
+    /** Thread data for commentsExtended.xml, or undefined when no comments use parentId. */
     public get ThreadData(): readonly ICommentThreadData[] | undefined {
         return this.threadData;
     }
 
+    /** Comment id data for commentsIds.xml, or undefined when there are no comments. */
     public get CommentIdData(): readonly ICommentIdData[] | undefined {
         return this.commentIdData;
     }
 
+    /** Upstream docx's name for {@link CommentIdData}. */
+    public get CommentIdsData(): readonly ICommentIdData[] | undefined {
+        return this.commentIdData;
+    }
+
+    /** UTC date data for commentsExtensible.xml, or undefined when there are no comments. */
     public get CommentExtensibleData(): readonly ICommentExtensibleData[] | undefined {
         return this.commentExtensibleData;
+    }
+
+    /** Whether there are no comments, in which case the document has no comments.xml part. */
+    public get IsEmpty(): boolean {
+        return this.isEmpty;
     }
 }

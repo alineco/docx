@@ -12,11 +12,15 @@ The patcher allows you to modify existing documents, and add new content to them
 import * as fs from "fs";
 import { patchDocument } from "docx";
 
-patchDocument(fs.readFileSync("My Document.docx"), {
+const doc = await patchDocument({
+    outputType: "nodebuffer",
+    data: fs.readFileSync("My Document.docx"),
     patches: {
         // Patches here
     },
 });
+
+fs.writeFileSync("My Patched Document.docx", doc);
 ```
 
 ## Patches
@@ -37,6 +41,8 @@ interface Patch {
 
 The patcher also takes in a `keepOriginalStyles` boolean, which will preserve the styles of the patched text when set to true.
 
+A patch can also be for a drawing whose alt text holds the placeholder, rather than for text: `ChartDataPatch` from `docx/charts` gives a chart made in Word new data, keeping its look. See [Charts in Templates](usage/chart-templates.md).
+
 ### How to patch existing document
 
 1. Open your existing word document in your favorite Word Processor
@@ -53,16 +59,23 @@ The patcher also takes in a `keepOriginalStyles` boolean, which will preserve th
 
 ?> Notice how there is no handlebar notation in the key.
 
-The patch can be as simple as a string, or as complex as a table. Images, hyperlinks, and other complex elements within the `docx` library are also supported.
+The patch can be as simple as a string, or as complex as a table. Images, hyperlinks, charts from `docx/charts` (see [Charts in Templates](usage/chart-size-and-position.md#in-templates)), and other complex elements within the `docx` library are also supported.
 
-```ts
-patchDocument(fs.readFileSync("My Document.docx"), {
+This example patches `{{name}}` and `{{paragraph_replace}}` in [simple-template.docx](https://github.com/dolanmiu/docx/blob/master/demo/assets/simple-template.docx):
+
+```ts live
+import * as fs from "fs";
+import { ExternalHyperlink, ImageRun, Paragraph, patchDocument, PatchType, TextRun } from "docx";
+
+const doc = await patchDocument({
+    outputType: "nodebuffer",
+    data: fs.readFileSync("./demo/assets/simple-template.docx"),
     patches: {
-        my_patch: {
+        name: {
             type: PatchType.PARAGRAPH,
             children: [new TextRun("Sir. "), new TextRun("John Doe"), new TextRun("(The Conqueror)")],
         },
-        my_second_patch: {
+        paragraph_replace: {
             type: PatchType.DOCUMENT,
             children: [
                 new Paragraph("Lorem ipsum paragraph"),
@@ -80,7 +93,7 @@ patchDocument(fs.readFileSync("My Document.docx"), {
                         }),
                         new ImageRun({
                             type: "png",
-                            data: fs.readFileSync("./demo/images/dog.png"),
+                            data: fs.readFileSync("./demo/assets/images/dog.png"),
                             transformation: { width: 100, height: 100 },
                         }),
                     ],
@@ -89,12 +102,14 @@ patchDocument(fs.readFileSync("My Document.docx"), {
         },
     },
 });
+
+fs.writeFileSync("My Document.docx", doc);
 ```
 
 ---
 
 ## Demo
 
-_Source: https://github.com/dolanmiu/docx/blob/master/demo/85-template-document.ts_
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/templates/patch-document.ts_
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/85-template-document.ts ":include :type=code typescript")
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/templates/patch-document.ts ":include :type=code typescript")

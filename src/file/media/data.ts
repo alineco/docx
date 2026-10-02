@@ -1,6 +1,7 @@
 import type { OutlineOptions } from "@file/drawing/inline/graphic/graphic-data/pic/shape-properties/outline/outline";
 import type { SolidFillOptions } from "@file/drawing/inline/graphic/graphic-data/pic/shape-properties/outline/solid-fill";
-import type { WpsShapeCoreOptions } from "@file/drawing/inline/graphic/graphic-data/wps";
+import type { WpsShapeCoreOptions } from "@file/drawing/inline/graphic/graphic-data/wps/wps-shape";
+import type { XmlComponent } from "@file/xml-components";
 
 export type IMediaDataTransformation = {
     readonly offset?: {
@@ -89,12 +90,37 @@ export type WpgMediaData = {
     readonly children: readonly IGroupChildMediaData[];
 };
 
-export type IExtendedMediaData = IMediaData | WpsMediaData | WpgMediaData;
+/**
+ * Any DrawingML graphic, such as a shape, group or drawing canvas, written into a {@link Drawing} as it is given.
+ *
+ * The drawing writes the parts every drawing has: its size and position (`wp:inline` or `wp:anchor`), its id and
+ * alternative text (`wp:docPr`) and `a:graphic`. `content` is written inside `a:graphicData`, and `uri` says what kind of
+ * graphic it is. This is how `docx/shapes` writes its shapes.
+ *
+ * @example
+ * ```typescript
+ * new Drawing({
+ *   type: "graphic",
+ *   uri: "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+ *   transformation: createTransformation({ width: 100, height: 50 }),
+ *   content: new BuilderElement({ name: "wps:wsp", children: [...] }),
+ * });
+ * ```
+ */
+export type GraphicMediaData = {
+    readonly type: "graphic";
+    /** What kind of graphic `content` is: the `uri` attribute of `a:graphicData` */
+    readonly uri: string;
+    readonly transformation: IMediaDataTransformation;
+    /** The graphic, written inside `a:graphicData` */
+    readonly content: XmlComponent;
+    /**
+     * Whether Word keeps the graphic's aspect ratio when it is resized (`noChangeAspect`). Default is true. Charts are
+     * written with false, as Word writes them
+     */
+    readonly lockAspectRatio?: boolean;
+};
+
+export type IExtendedMediaData = IMediaData | WpsMediaData | WpgMediaData | GraphicMediaData;
 
 export type IMediaData = (RegularMediaData | SvgMediaData) & CoreMediaData;
-
-// Needed because of: https://github.com/s-panferov/awesome-typescript-loader/issues/432
-/**
- * @ignore
- */
-export const WORKAROUND2 = "";
