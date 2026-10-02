@@ -1,0 +1,247 @@
+# Chart Size and Position
+
+A chart is a run in a paragraph, like an image. It sits in the line of text, where the paragraph puts it, unless you make it float.
+
+## Size
+
+`transformation` is the chart's size in pixels, at 96 pixels to an inch:
+
+```ts live
+import { Document, Paragraph } from "docx";
+import { ChartRun } from "docx/charts";
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new ChartRun({
+                            type: "column",
+                            categories: ["Q1", "Q2", "Q3", "Q4"],
+                            series: [{ name: "Sales", values: [120, 135, 150, 170] }],
+                            transformation: { width: 400, height: 250 },
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
+```
+
+The default is 576 by 336 pixels, 6 by 3.5 inches, the size Word inserts a chart at. The chart's title, legend and axes are drawn at the same size whatever the chart's size, so the plot gets the space that is left.
+
+As in Word, a chart can be made wider without being made taller: its aspect ratio isn't locked.
+
+## Small Charts
+
+A chart with no title, legend or axes can be as small as a word, such as a trend beside a heading:
+
+```ts live
+import { Document, Paragraph, TextRun } from "docx";
+import { ChartRun } from "docx/charts";
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new TextRun("Visitors this year "),
+                        new ChartRun({
+                            type: "line",
+                            categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+                            series: [{ name: "Visitors", values: [12, 15, 14, 18, 22, 21] }],
+                            legend: false,
+                            categoryAxis: { visible: false },
+                            valueAxis: { visible: false, gridlines: false },
+                            transformation: { width: 144, height: 48 },
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
+```
+
+Apple Pages doesn't draw a chart less than about half an inch (48 pixels) tall.
+
+## Floating
+
+Add `floating` to position the chart on the page instead of in the line of text, with text wrapping around it. The options are the same as for [floating images](usage/images.md#floating), and the positions and wrapping types come from `docx`:
+
+```ts live
+import {
+    Document,
+    HorizontalPositionAlign,
+    HorizontalPositionRelativeFrom,
+    Paragraph,
+    TextRun,
+    TextWrappingSide,
+    TextWrappingType,
+    VerticalPositionRelativeFrom,
+} from "docx";
+import { ChartRun } from "docx/charts";
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new ChartRun({
+                            type: "column",
+                            categories: ["Mon", "Tue", "Wed"],
+                            series: [{ name: "Orders", values: [8, 12, 9] }],
+                            transformation: { width: 260, height: 180 },
+                            floating: {
+                                horizontalPosition: {
+                                    relative: HorizontalPositionRelativeFrom.MARGIN,
+                                    align: HorizontalPositionAlign.RIGHT,
+                                },
+                                verticalPosition: { relative: VerticalPositionRelativeFrom.PARAGRAPH, offset: 0 },
+                                wrap: { type: TextWrappingType.SQUARE, side: TextWrappingSide.LEFT },
+                            },
+                        }),
+                        new TextRun("This text wraps around the chart, which is at the right margin."),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
+```
+
+## Where Charts Can Go
+
+A chart can go in any paragraph: in the body, a table cell, a header, a footer or a footnote. It can go in a template too: see [In Templates](#in-templates).
+
+To put two charts side by side, put each in a cell of a table, and make each narrower than its cell:
+
+```ts live
+import { Document, Paragraph, Table, TableCell, TableRow, WidthType } from "docx";
+import { ChartRun } from "docx/charts";
+
+const cell = (chart: ChartRun): TableCell => new TableCell({ children: [new Paragraph({ children: [chart] })] });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Table({
+                    width: { size: 100, type: WidthType.PERCENTAGE },
+                    rows: [
+                        new TableRow({
+                            children: [
+                                cell(
+                                    new ChartRun({
+                                        type: "pie",
+                                        categories: ["North", "South", "East"],
+                                        series: [{ name: "Share", values: [50, 30, 20] }],
+                                        transformation: { width: 290, height: 260 },
+                                    }),
+                                ),
+                                cell(
+                                    new ChartRun({
+                                        type: "column",
+                                        categories: ["North", "South", "East"],
+                                        series: [{ name: "Sales", values: [120, 70, 45] }],
+                                        transformation: { width: 290, height: 260 },
+                                    }),
+                                ),
+                            ],
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
+```
+
+## In Templates
+
+`patchDocument` puts a chart where a template has a placeholder, as it does an image. A `DOCUMENT` patch takes a paragraph with the chart in it, and a `PARAGRAPH` patch takes the chart itself, with any other runs:
+
+```ts live
+import * as fs from "fs";
+import { Paragraph, patchDocument, PatchType } from "docx";
+import { ChartRun } from "docx/charts";
+
+const doc = await patchDocument({
+    outputType: "nodebuffer",
+    data: fs.readFileSync("./demo/assets/simple-template.docx"),
+    patches: {
+        paragraph_replace: {
+            type: PatchType.DOCUMENT,
+            children: [
+                new Paragraph({
+                    children: [
+                        new ChartRun({
+                            type: "column",
+                            categories: ["Q1", "Q2", "Q3", "Q4"],
+                            series: [{ name: "Sales", values: [120, 135, 150, 170] }],
+                        }),
+                    ],
+                }),
+            ],
+        },
+    },
+});
+
+fs.writeFileSync("My Document.docx", doc);
+```
+
+The chart is added with its workbook, so Word's "Edit Data" works, as it does for a chart in a new `Document`. Placeholders in headers and footers take charts too. See [Patcher](usage/patcher.md).
+
+To give the template's own charts new data, keeping their look, see [Charts in Templates](usage/chart-templates.md).
+
+## Alternative Text
+
+A chart is described for screen readers from its type, title and data, such as "Column chart, Sales by quarter. Sales: Q1 120, Q2 135, Q3 150, Q4 170." Long descriptions are cut at 1,000 characters.
+
+`altText` gives the chart a description of your own, which is better when the chart has a point to make:
+
+```ts live
+import { Document, Paragraph } from "docx";
+import { ChartRun } from "docx/charts";
+
+const doc = new Document({
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new ChartRun({
+                            type: "column",
+                            title: "Sales by quarter",
+                            categories: ["Q1", "Q2", "Q3", "Q4"],
+                            series: [{ name: "Sales", values: [120, 135, 150, 170] }],
+                            altText: {
+                                name: "Sales by quarter",
+                                description: "Sales rose each quarter, from 120 units in Q1 to 170 in Q4",
+                            },
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
+});
+```
+
+`name` is required, and `description` and `title` are optional. A chart with `altText` but no `description` is still described from its data.
+
+`decorative: true` marks a chart as decorative, as Word's "Mark as decorative" does, so screen readers skip it, and it isn't described.
+
+## Options
+
+| Property         | Type                    | Notes    | Description                                                                                                                          |
+| ---------------- | ----------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `transformation` | `{ width, height }`     | Optional | Size in pixels. Default is 576 by 336                                                                                                |
+| `floating`       | `IFloating`             | Optional | Floats the chart. See [floating images](usage/images.md#floating)                                                                    |
+| `altText`        | `DocPropertiesOptions`  | Optional | `{ name, description?, title? }` for screen readers. Default is described from the data                                              |
+| `decorative`     | `boolean`               | Optional | Marks the chart as decorative, so screen readers skip it. Default `false`                                                            |
+| `run`            | `IRunPropertiesOptions` | Optional | Formatting of the run the chart is in, such as `position` to raise or lower it. See [run formatting](usage/images.md#run-formatting) |

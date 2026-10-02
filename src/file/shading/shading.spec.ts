@@ -6,12 +6,27 @@ import { ShadingType, createShading } from "./shading";
 
 describe("Shading", () => {
     describe("#createShading", () => {
-        it("should create", () => {
+        it("should write clear shading when no pattern is given, as w:val is required", () => {
             const shading = createShading({});
             const tree = new Formatter().format(shading);
             expect(tree).to.deep.equal({
                 "w:shd": {
-                    _attr: {},
+                    _attr: {
+                        "w:val": "clear",
+                    },
+                },
+            });
+        });
+
+        it("should write a fill with no pattern as clear shading", () => {
+            const shading = createShading({ fill: "00FF00" });
+            const tree = new Formatter().format(shading);
+            expect(tree).to.deep.equal({
+                "w:shd": {
+                    _attr: {
+                        "w:fill": "00FF00",
+                        "w:val": "clear",
+                    },
                 },
             });
         });
@@ -25,6 +40,28 @@ describe("Shading", () => {
                         "w:color": "FF0000",
                         "w:fill": "555555",
                         "w:val": "pct40",
+                    },
+                },
+            });
+        });
+
+        it("should create with colors of the document's theme", () => {
+            const shading = createShading({
+                type: ShadingType.PERCENT_20,
+                color: { theme: "dark1", lighter: 50 },
+                fill: { theme: "accent1", lighter: 80 },
+            });
+            const tree = new Formatter().format(shading);
+            expect(tree).to.deep.equal({
+                "w:shd": {
+                    _attr: {
+                        "w:fill": "D9E2F3",
+                        "w:themeFill": "accent1",
+                        "w:themeFillTint": "33",
+                        "w:color": "7F7F7F",
+                        "w:themeColor": "dark1",
+                        "w:themeTint": "80",
+                        "w:val": "pct20",
                     },
                 },
             });

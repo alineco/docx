@@ -10,9 +10,10 @@
  */
 import { ConcreteHyperlink } from "@file/paragraph";
 import { type IContext, type IXmlableObject, NextAttributeComponent, XmlComponent } from "@file/xml-components";
-import { docPropertiesUniqueNumericIdGen } from "@util/convenience-functions";
+import { docPropertiesUniqueNumericId } from "@util/convenience-functions";
 
 import { createHyperlinkClick } from "./doc-properties-children";
+import { DrawingLink, type DrawingLinkOptions, createDecorativeExtensionList } from "./non-visual-drawing-properties";
 
 // <complexType name="CT_NonVisualDrawingProps">
 //     <sequence>
@@ -27,9 +28,7 @@ import { createHyperlinkClick } from "./doc-properties-children";
 // </complexType>
 
 /**
- * Options for configuring document properties of a drawing.
- *
- * @see {@link DocProperties}
+ * Options for configuring document properties of a drawing: its name and alternative text, written in `wp:docPr`.
  */
 export type DocPropertiesOptions = {
     /** Name of the drawing element (used for identification) */
@@ -65,15 +64,19 @@ export type DocPropertiesOptions = {
  * ```
  */
 export class DocProperties extends XmlComponent {
-    private readonly docPropertiesUniqueNumericId = docPropertiesUniqueNumericIdGen();
+    private readonly link?: DrawingLink;
+    private readonly decorative?: boolean;
 
-    public constructor({ name, description, title, id }: DocPropertiesOptions = { name: "", description: "", title: "" }) {
+    public constructor(
+        { name, description, title, id }: DocPropertiesOptions = { name: "", description: "", title: "" },
+        { link, decorative }: DrawingLinkOptions = {},
+    ) {
         super("wp:docPr");
 
         const attributes: Record<string, { readonly key: string; readonly value: string | number }> = {
             id: {
                 key: "id",
-                value: id ?? this.docPropertiesUniqueNumericId(),
+                value: id ?? docPropertiesUniqueNumericId(),
             },
             name: {
                 key: "name",
@@ -96,19 +99,34 @@ export class DocProperties extends XmlComponent {
         }
 
         this.root.push(new NextAttributeComponent(attributes));
+        this.link = link === undefined ? undefined : new DrawingLink(link);
+        this.decorative = decorative;
     }
 
     public prepForXml(context: IContext): IXmlableObject | undefined {
-        for (let i = context.stack.length - 1; i >= 0; i--) {
-            const element = context.stack[i];
-            if (!(element instanceof ConcreteHyperlink)) {
-                continue;
-            }
+        if (this.link) {
+            this.link.addRelationship(context);
+            this.root.push(this.link.createClick(true));
+        } else {
+            for (let i = context.stack.length - 1; i >= 0; i--) {
+                const element = context.stack[i];
+                if (!(element instanceof ConcreteHyperlink)) {
+                    continue;
+                }
 
-            this.root.push(createHyperlinkClick(element.linkId, true));
-            break;
+                this.root.push(createHyperlinkClick(element.linkId, true));
+                break;
+            }
         }
 
-        return super.prepForXml(context);
+        // The extension list comes after the link in the schema
+        if (this.decorative) {
+            this.root.push(createDecorativeExtensionList(true));
+        }
+
+        const result = super.prepForXml(context);
+        // Keep only the attributes, so the element is the same if the document is written again
+        this.root.splice(1);
+        return result;
     }
 }

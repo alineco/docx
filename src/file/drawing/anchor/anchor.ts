@@ -5,7 +5,14 @@ import { XmlComponent } from "@file/xml-components";
 import type { IDrawingOptions } from "../drawing";
 import { type IFloating, createHorizontalPosition, createSimplePos, createVerticalPosition } from "../floating";
 import { Graphic } from "../inline/graphic";
-import { TextWrappingType, createWrapNone, createWrapSquare, createWrapTight, createWrapTopAndBottom } from "../text-wrap";
+import {
+    TextWrappingType,
+    createWrapNone,
+    createWrapSquare,
+    createWrapThrough,
+    createWrapTight,
+    createWrapTopAndBottom,
+} from "../text-wrap";
 import { DocProperties } from "./../doc-properties/doc-properties";
 import { createEffectExtent } from "./../effect-extent/effect-extent";
 import { createExtent } from "./../extent/extent";
@@ -114,7 +121,7 @@ export class Anchor extends XmlComponent {
         this.root.push(createHorizontalPosition(floating.horizontalPosition));
         this.root.push(createVerticalPosition(floating.verticalPosition));
         this.root.push(createExtent({ x: transform.emus.x, y: transform.emus.y }));
-        this.root.push(createEffectExtent({ top: 0, right: 0, bottom: 0, left: 0 }));
+        this.root.push(createEffectExtent(drawingOptions.effectExtent ?? { top: 0, right: 0, bottom: 0, left: 0 }));
 
         if (drawingOptions.floating !== undefined && drawingOptions.floating.wrap !== undefined) {
             switch (drawingOptions.floating.wrap.type) {
@@ -122,7 +129,10 @@ export class Anchor extends XmlComponent {
                     this.root.push(createWrapSquare(drawingOptions.floating.wrap, drawingOptions.floating.margins));
                     break;
                 case TextWrappingType.TIGHT:
-                    this.root.push(createWrapTight(drawingOptions.floating.margins));
+                    this.root.push(createWrapTight(drawingOptions.floating.margins, drawingOptions.floating.wrap));
+                    break;
+                case TextWrappingType.THROUGH:
+                    this.root.push(createWrapThrough(drawingOptions.floating.margins, drawingOptions.floating.wrap));
                     break;
                 case TextWrappingType.TOP_AND_BOTTOM:
                     this.root.push(createWrapTopAndBottom(drawingOptions.floating.margins));
@@ -135,8 +145,18 @@ export class Anchor extends XmlComponent {
             this.root.push(createWrapNone());
         }
 
-        this.root.push(new DocProperties(drawingOptions.docProperties));
-        this.root.push(createGraphicFrameProperties());
-        this.root.push(new Graphic({ mediaData, transform, outline: drawingOptions.outline, solidFill: drawingOptions.solidFill }));
+        this.root.push(
+            new DocProperties(drawingOptions.docProperties, { link: drawingOptions.link, decorative: drawingOptions.decorative }),
+        );
+        this.root.push(createGraphicFrameProperties(mediaData.type !== "graphic" || mediaData.lockAspectRatio !== false));
+        this.root.push(
+            new Graphic({
+                mediaData,
+                transform,
+                outline: drawingOptions.outline,
+                solidFill: drawingOptions.solidFill,
+                crop: drawingOptions.crop,
+            }),
+        );
     }
 }

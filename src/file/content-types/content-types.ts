@@ -65,10 +65,17 @@ export class ContentTypes extends XmlComponent {
         );
         this.root.push(createOverride("application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml", "/word/endnotes.xml"));
         this.root.push(createOverride("application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml", "/word/settings.xml"));
-        this.root.push(createOverride("application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml", "/word/comments.xml"));
         this.root.push(
             createOverride("application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml", "/word/fontTable.xml"),
         );
+        this.root.push(createOverride("application/vnd.openxmlformats-officedocument.theme+xml", "/word/theme/theme1.xml"));
+    }
+
+    /**
+     * Registers the comments part in the content types.
+     */
+    public addComments(): void {
+        this.root.push(createOverride("application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml", "/word/comments.xml"));
     }
 
     /**
@@ -113,6 +120,16 @@ export class ContentTypes extends XmlComponent {
         this.root.push(
             createOverride("application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml", `/word/footer${index}.xml`),
         );
+    }
+
+    /**
+     * Registers a part by its name, such as a chart or an embedded workbook that a drawing adds to the package.
+     *
+     * @param contentType - The part's content type
+     * @param partName - The part's name, from the root of the package, such as "/word/charts/chart1.xml"
+     */
+    public addOverride(contentType: string, partName: string): void {
+        this.root.push(createOverride(contentType, partName));
     }
 
     /**

@@ -21,6 +21,7 @@ import type { Footer, Header } from "./header";
 import { HeaderWrapper, type IDocumentHeader } from "./header-wrapper";
 import { Media } from "./media";
 import { Numbering } from "./numbering";
+import { PackageParts } from "./package-part/package-part";
 import { Comments } from "./paragraph/run/comment-run";
 import { CommentsExtended } from "./paragraph/run/comments-extended";
 import { CommentsExtensible } from "./paragraph/run/comments-extensible";
@@ -29,7 +30,9 @@ import { Relationships } from "./relationships";
 import { Settings } from "./settings";
 import { Styles } from "./styles";
 import { ExternalStylesFactory } from "./styles/external-styles-factory";
-import { DefaultStylesFactory } from "./styles/factory";
+import { DefaultStylesFactory, createDefaultStyles } from "./styles/factory";
+import { Theme } from "./theme";
+import type { XmlComponent } from "./xml-components";
 
 /**
  * Options for a document section.
@@ -167,10 +170,15 @@ export class File {
     private readonly appProperties: AppProperties;
     private readonly styles: Styles;
     private readonly comments: Comments;
+    /** Extended comment data for reply threading and resolved state (word/commentsExtended.xml). */
     private readonly commentsExtended?: CommentsExtended;
+    /** Durable comment id mapping (word/commentsIds.xml). */
     private readonly commentsIds?: CommentsIds;
+    /** UTC comment dates (word/commentsExtensible.xml). */
     private readonly commentsExtensible?: CommentsExtensible;
     private readonly fontWrapper: FontWrapper;
+    private readonly theme: Theme;
+    private readonly packageParts: PackageParts;
 
     public constructor(options: IPropertiesOptions) {
         this.coreProperties = new CoreProperties({
@@ -198,6 +206,7 @@ export class File {
         this.footnotesWrapper = new FootnotesWrapper();
         this.endnotesWrapper = new EndnotesWrapper();
         this.contentTypes = new ContentTypes();
+        this.packageParts = new PackageParts(this.contentTypes);
         this.documentWrapper = new DocumentWrapper({ background: options.background });
         this.settings = new Settings({
             compatibilityModeVersion: options.compatabilityModeVersion,
@@ -217,13 +226,20 @@ export class File {
         this.media = new Media();
 
         if (options.externalStyles !== undefined) {
-            const defaultFactory = new DefaultStylesFactory();
-            const defaultStyles = defaultFactory.newInstance(options.styles?.default);
+            const given = options.styles?.default ?? {};
+            const defaultStyles = Object.entries(createDefaultStyles(given));
+            const isGiven = ([key]: readonly [string, XmlComponent]): boolean => given[key as keyof typeof given] !== undefined;
             const externalFactory = new ExternalStylesFactory();
             const externalStyles = externalFactory.newInstance(options.externalStyles);
+            // A style replaces an earlier one with its id. So the external styles replace docx's default styles, and the
+            // default styles given in styles.default replace the external ones
             this.styles = new Styles({
                 ...externalStyles,
-                importedStyles: [...defaultStyles.importedStyles!, ...externalStyles.importedStyles!],
+                importedStyles: [
+                    ...defaultStyles.filter((entry) => !isGiven(entry)).map(([, style]) => style),
+                    ...externalStyles.importedStyles!,
+                    ...defaultStyles.filter(isGiven).map(([, style]) => style),
+                ],
             });
         } else if (options.styles) {
             const stylesFactory = new DefaultStylesFactory();
@@ -258,6 +274,15 @@ export class File {
         }
 
         this.fontWrapper = new FontWrapper(options.fonts ?? []);
+
+        this.theme = new Theme(options.theme);
+        // After the headers and footers, so their relationships keep the ids they had before documents had a theme
+        this.documentWrapper.Relationships.addRelationship(
+            // eslint-disable-next-line functional/immutable-data
+            this.currentRelationshipId++,
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme",
+            "theme/theme1.xml",
+        );
     }
 
     private addSection({ headers = {}, footers = {}, children, properties }: ISectionOptions): void {
@@ -384,12 +409,16 @@ export class File {
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings",
             "settings.xml",
         );
-        this.documentWrapper.Relationships.addRelationship(
-            // eslint-disable-next-line functional/immutable-data
-            this.currentRelationshipId++,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
-            "comments.xml",
-        );
+        // Only when there are comments: Google Drive won't open a document with an empty comments part
+        if (!this.comments.IsEmpty) {
+            this.documentWrapper.Relationships.addRelationship(
+                // eslint-disable-next-line functional/immutable-data
+                this.currentRelationshipId++,
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+                "comments.xml",
+            );
+            this.contentTypes.addComments();
+        }
 
         if (this.commentsExtended) {
             this.documentWrapper.Relationships.addRelationship(
@@ -482,19 +511,32 @@ export class File {
         return this.comments;
     }
 
+    /** Extended comments part for reply threading. Undefined when no comment threads exist. */
     public get CommentsExtended(): CommentsExtended | undefined {
         return this.commentsExtended;
     }
 
+    /** Durable comment id part. Undefined when there are no comments. */
     public get CommentsIds(): CommentsIds | undefined {
         return this.commentsIds;
     }
 
+    /** UTC comment date part. Undefined when there are no comments. */
     public get CommentsExtensible(): CommentsExtensible | undefined {
         return this.commentsExtensible;
     }
 
     public get FontTable(): FontWrapper {
         return this.fontWrapper;
+    }
+
+    /** The document's theme (word/theme/theme1.xml). */
+    public get Theme(): Theme {
+        return this.theme;
+    }
+
+    /** The parts that drawings, such as charts, add to the package when it is written. */
+    public get PackageParts(): PackageParts {
+        return this.packageParts;
     }
 }

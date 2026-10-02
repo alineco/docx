@@ -4,6 +4,7 @@ import { XmlComponent } from "@file/xml-components";
 
 import { GraphicDataAttributes } from "./graphic-data-attribute";
 import { Pic } from "./pic";
+import type { ICropOptions } from "./pic/blip/source-rectangle";
 import type { OutlineOptions } from "./pic/shape-properties/outline/outline";
 import type { SolidFillOptions } from "./pic/shape-properties/outline/solid-fill";
 import { createWpgGroup } from "./wpg/wpg-group";
@@ -44,15 +45,21 @@ export class GraphicData extends XmlComponent {
         transform,
         outline,
         solidFill,
+        crop,
     }: {
         readonly mediaData: IExtendedMediaData;
         readonly transform: IMediaDataTransformation;
         readonly outline?: OutlineOptions;
         readonly solidFill?: SolidFillOptions;
+        readonly crop?: ICropOptions;
     }) {
         super("a:graphicData");
 
-        if (mediaData.type === "wps") {
+        if (mediaData.type === "graphic") {
+            // A graphic written by its caller, such as a shape from docx/shapes
+            this.root.push(new GraphicDataAttributes({ uri: mediaData.uri }));
+            this.root.push(mediaData.content);
+        } else if (mediaData.type === "wps") {
             this.root.push(
                 new GraphicDataAttributes({
                     uri: "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
@@ -68,7 +75,6 @@ export class GraphicData extends XmlComponent {
             );
             const md = mediaData as WpgMediaData;
             const children = md.children.map((child) => {
-                // eslint-disable-next-line unicorn/prefer-ternary
                 if (child.type === "wps") {
                     return createWpsShape({
                         ...child.data,
@@ -77,7 +83,12 @@ export class GraphicData extends XmlComponent {
                         solidFill: child.solidFill,
                     });
                 } else {
-                    return new Pic({ mediaData: child, transform: child.transformation, outline: child.outline });
+                    return new Pic({
+                        mediaData: child,
+                        transform: child.transformation,
+                        outline: child.outline,
+                        solidFill: child.solidFill,
+                    });
                 }
             });
             // const wps = new WpsShape({ ...mediaData.data, transformation: transform, outline, solidFill });
@@ -90,7 +101,7 @@ export class GraphicData extends XmlComponent {
                 }),
             );
             const md = mediaData as IMediaData;
-            const pic = new Pic({ mediaData: md, transform, outline });
+            const pic = new Pic({ mediaData: md, transform, outline, solidFill, crop });
             this.root.push(pic);
         }
 

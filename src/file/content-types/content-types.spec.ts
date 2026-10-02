@@ -109,6 +109,30 @@ describe("ContentTypes", () => {
                     },
                 },
             });
+            expect(tree["Types"][20]).to.deep.equal({
+                Override: {
+                    _attr: {
+                        ContentType: "application/vnd.openxmlformats-officedocument.theme+xml",
+                        PartName: "/word/theme/theme1.xml",
+                    },
+                },
+            });
+        });
+    });
+
+    describe("#addComments()", () => {
+        it("should add comments", () => {
+            contentTypes.addComments();
+            const tree = new Formatter().format(contentTypes);
+
+            expect(tree["Types"][21]).to.deep.equal({
+                Override: {
+                    _attr: {
+                        ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml",
+                        PartName: "/word/comments.xml",
+                    },
+                },
+            });
         });
     });
 
@@ -206,6 +230,22 @@ describe("ContentTypes", () => {
                     _attr: {
                         ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtensible+xml",
                         PartName: "/word/commentsExtensible.xml",
+                    },
+                },
+            });
+        });
+    });
+
+    describe("#addOverride()", () => {
+        it("should add a part by its name", () => {
+            contentTypes.addOverride("application/vnd.openxmlformats-officedocument.drawingml.chart+xml", "/word/charts/chart1.xml");
+            const tree = new Formatter().format(contentTypes);
+
+            expect(tree["Types"][21]).to.deep.equal({
+                Override: {
+                    _attr: {
+                        ContentType: "application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
+                        PartName: "/word/charts/chart1.xml",
                     },
                 },
             });

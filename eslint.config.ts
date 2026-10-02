@@ -1,6 +1,7 @@
 import eslint from "@eslint/js";
 import type { Linter } from "eslint";
-import importPlugin from "eslint-plugin-import";
+import { createTypeScriptImportResolver } from "eslint-import-resolver-typescript";
+import { createNodeResolver, importX } from "eslint-plugin-import-x";
 import unicorn from "eslint-plugin-unicorn";
 import jsdoc from "eslint-plugin-jsdoc";
 import preferArrow from "eslint-plugin-prefer-arrow";
@@ -10,10 +11,19 @@ import tsEslint from "typescript-eslint";
 
 const config: Linter.Config<Linter.RulesRecord>[] = [
     {
-        ignores: ["**/vite.config.ts", "**/dist/**", "**/coverage/**", "**/*.js", "eslint.config.ts", "**/demo/**", "**/scripts/**"],
+        ignores: [
+            "**/vite*.config.ts",
+            "**/dist/**",
+            "docs/live-examples/lib/**",
+            "**/coverage/**",
+            "**/*.js",
+            "eslint.config.ts",
+            "**/demo/**",
+            "**/scripts/**",
+        ],
     },
     eslint.configs.recommended,
-    importPlugin.flatConfigs.recommended,
+    importX.flatConfigs.recommended,
     ...tsEslint.configs.recommended,
     ...tsEslint.configs.stylistic,
     {
@@ -33,10 +43,7 @@ const config: Linter.Config<Linter.RulesRecord>[] = [
         },
 
         settings: {
-            "import/resolver": {
-                typescript: true,
-                node: true,
-            },
+            "import-x/resolver-next": [createTypeScriptImportResolver(), createNodeResolver()],
         },
 
         rules: {
@@ -111,10 +118,13 @@ const config: Linter.Config<Linter.RulesRecord>[] = [
             ],
 
             "@typescript-eslint/consistent-type-assertions": "error",
-            "@typescript-eslint/consistent-type-imports": ["error", {
-                prefer: "type-imports",
-                fixStyle: "inline-type-imports",
-            }],
+            "@typescript-eslint/consistent-type-imports": [
+                "error",
+                {
+                    prefer: "type-imports",
+                    fixStyle: "inline-type-imports",
+                },
+            ],
             "@typescript-eslint/dot-notation": "error",
 
             "@typescript-eslint/explicit-function-return-type": [
@@ -221,10 +231,10 @@ const config: Linter.Config<Linter.RulesRecord>[] = [
             "id-denylist": ["error", "any", "Number", "number", "String", "string", "Boolean", "boolean", "Undefined", "undefined"],
 
             "id-match": "error",
-            "import/no-default-export": "error",
-            "import/no-duplicates": ["error", { "prefer-inline": true }],
-            "import/no-extraneous-dependencies": "off",
-            "import/no-internal-modules": "off",
+            "import-x/no-default-export": "error",
+            "import-x/no-duplicates": ["error", { "prefer-inline": true }],
+            "import-x/no-extraneous-dependencies": "off",
+            "import-x/no-internal-modules": "off",
             "sort-imports": [
                 "error",
                 {
@@ -232,7 +242,7 @@ const config: Linter.Config<Linter.RulesRecord>[] = [
                     ignoreDeclarationSort: true,
                 },
             ],
-            "import/order": [
+            "import-x/order": [
                 "error",
                 {
                     groups: [["external", "builtin"], "internal", ["sibling", "parent", "index"]],
@@ -365,6 +375,65 @@ const config: Linter.Config<Linter.RulesRecord>[] = [
                 "error",
                 {
                     argsIgnorePattern: "^[_]+$",
+                },
+            ],
+        },
+    },
+    // docx's optional entries, docx/shapes (src/shapes), docx/watermarks (src/watermarks) and docx/charts (src/charts), are
+    // built on docx's public API. They import docx by name, so their builds leave docx out and the package has one copy of
+    // each class and id counter. docx doesn't import them. Specs may import docx's internals, such as the Formatter.
+    // docx/math (src/math) re-exports docx's math, which docx still exports and keeps in src/file/paragraph/math
+    {
+        files: ["src/**/*.ts"],
+        ignores: ["src/shapes/**", "src/watermarks/**", "src/charts/**", "src/math/**", "**/*.spec.ts"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    paths: [{ name: "docx", message: "docx doesn't import itself by name. Use a path alias such as @file/" }],
+                    patterns: [
+                        { group: ["docx/*"], message: "docx doesn't import its optional entries, such as docx/shapes" },
+                        {
+                            regex: "(^|/)(shapes|watermarks|charts)(/|$)",
+                            message: "docx doesn't import its optional entries, such as docx/shapes",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        files: ["src/shapes/*.ts", "src/watermarks/*.ts", "src/charts/*.ts", "src/math/*.ts"],
+        ignores: ["**/*.spec.ts"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    patterns: [
+                        {
+                            group: ["@file/*", "@util/*", "@export/*", "@shared", "@shared/*"],
+                            message: 'Optional entries import docx from "docx"',
+                        },
+                        { regex: "^\\.\\./", message: 'Optional entries import docx from "docx"' },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        files: ["src/shapes/*/*.ts", "src/watermarks/*/*.ts", "src/charts/*/*.ts"],
+        ignores: ["**/*.spec.ts"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    patterns: [
+                        {
+                            group: ["@file/*", "@util/*", "@export/*", "@shared", "@shared/*"],
+                            message: 'Optional entries import docx from "docx"',
+                        },
+                        { regex: "^\\.\\./\\.\\./", message: 'Optional entries import docx from "docx"' },
+                    ],
                 },
             ],
         },

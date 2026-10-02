@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Formatter } from "@export/formatter";
 import type { IContext } from "@file/xml-components";
+import * as convenienceFunctions from "@util/convenience-functions";
 
 import { ConcreteHyperlink, TextRun } from "../";
 import { Drawing, type IDrawingOptions } from "./drawing";
@@ -29,6 +30,14 @@ const createDrawing = (drawingOptions?: IDrawingOptions): Drawing =>
     );
 
 describe("Drawing", () => {
+    beforeEach(() => {
+        vi.spyOn(convenienceFunctions, "docPropertiesUniqueNumericId").mockReturnValue(1);
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     let currentBreak: Drawing;
 
     describe("#constructor()", () => {
@@ -687,6 +696,49 @@ describe("Drawing", () => {
                         ],
                     },
                 ],
+            });
+        });
+
+        describe("a graphic", () => {
+            const createGraphicDrawing = (lockAspectRatio?: boolean, drawingOptions?: IDrawingOptions): Drawing =>
+                new Drawing(
+                    {
+                        type: "graphic",
+                        uri: "http://schemas.openxmlformats.org/drawingml/2006/chart",
+                        transformation: { pixels: { x: 100, y: 100 }, emus: { x: 952500, y: 952500 } },
+                        content: new TextRun("graphic"),
+                        lockAspectRatio,
+                    },
+                    drawingOptions,
+                );
+            const frameProperties = (drawing: Drawing): unknown => {
+                const tree = new Formatter().format(drawing);
+                const frame = (tree["w:drawing"][0]["wp:inline"] ?? tree["w:drawing"][0]["wp:anchor"]) as readonly Record<
+                    string,
+                    unknown
+                >[];
+                return frame.find((child) => "wp:cNvGraphicFramePr" in child);
+            };
+
+            it("should lock its aspect ratio by default", () => {
+                expect(frameProperties(createGraphicDrawing())).to.deep.equal({
+                    "wp:cNvGraphicFramePr": [
+                        {
+                            "a:graphicFrameLocks": {
+                                _attr: { noChangeAspect: 1, "xmlns:a": "http://schemas.openxmlformats.org/drawingml/2006/main" },
+                            },
+                        },
+                    ],
+                });
+            });
+
+            it("should leave out the lock when its aspect ratio isn't locked, inline or floating, as Word writes charts", () => {
+                expect(frameProperties(createGraphicDrawing(false))).to.deep.equal({ "wp:cNvGraphicFramePr": {} });
+                expect(
+                    frameProperties(
+                        createGraphicDrawing(false, { floating: { horizontalPosition: { offset: 0 }, verticalPosition: { offset: 0 } } }),
+                    ),
+                ).to.deep.equal({ "wp:cNvGraphicFramePr": {} });
             });
         });
     });

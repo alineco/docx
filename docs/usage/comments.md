@@ -16,18 +16,18 @@ To add comments in `docx`:
 
 Add a comment to a range of text:
 
-```ts
-import { Comment, CommentRangeEnd, CommentRangeStart, CommentReference, Document, Paragraph, TextRun } from "docx";
+```ts live
+import { CommentRangeEnd, CommentRangeStart, CommentReference, Document, Paragraph, TextRun } from "docx";
 
 const doc = new Document({
     comments: {
         children: [
-            new Comment({
+            {
                 id: 0,
                 author: "John Smith",
                 date: new Date(),
                 children: [new Paragraph("This needs to be reviewed.")],
-            }),
+            },
         ],
     },
     sections: [
@@ -50,25 +50,48 @@ const doc = new Document({
 
 ## Comment Options
 
-| Property | Type          | Notes    | Description                                      |
-| -------- | ------------- | -------- | ------------------------------------------------ |
-| id       | `number`      | Required | Unique identifier                                |
-| author   | `string`      | Optional | Comment author name                              |
-| date     | `Date`        | Optional | Comment timestamp                                |
-| initials | `string`      | Optional | Author initials                                  |
-| children | `Paragraph[]` | Required | Comment content                                  |
-| parentId | `number`      | Optional | ID of parent comment for reply threading         |
-| resolved | `boolean`     | Optional | Whether the comment thread is marked as resolved |
+| Property  | Type          | Notes    | Description                                                                                      |
+| --------- | ------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| id        | `number`      | Required | Unique identifier                                                                                |
+| author    | `string`      | Optional | Comment author name                                                                              |
+| date      | `Date`        | Optional | Comment timestamp                                                                                |
+| initials  | `string`      | Optional | Author initials                                                                                  |
+| children  | `Paragraph[]` | Required | Comment content                                                                                  |
+| parentId  | `number`      | Optional | ID of parent comment for reply threading                                                         |
+| resolved  | `boolean`     | Optional | Whether the comment thread is marked as resolved. The entire thread displays as resolved in Word |
+| durableId | `string`      | Optional | Stable id written to `word/commentsIds.xml`. Defaults to an id derived from `id`                 |
+
+Every comment is also written to `word/commentsIds.xml` (`w16cid:durableId`) and `word/commentsExtensible.xml` (`w16cex:dateUtc`). The `date` is written as the same UTC instant in both `w:date` and `w16cex:dateUtc`, so Word shows each comment's time in the reader's own time zone.
 
 ## Point Comment
 
 Add a comment at a specific point (not a range):
 
-```ts
-new Paragraph({
-    children: [
-        new TextRun("Check this point"),
-        new CommentReference(0), // Comment appears here
+```ts live
+import { CommentReference, Document, Paragraph, TextRun } from "docx";
+
+const doc = new Document({
+    comments: {
+        children: [
+            {
+                id: 0,
+                author: "John Smith",
+                date: new Date(),
+                children: [new Paragraph("A comment at this point.")],
+            },
+        ],
+    },
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new TextRun("Check this point"),
+                        new CommentReference(0), // Comment appears here
+                    ],
+                }),
+            ],
+        },
     ],
 });
 ```
@@ -77,22 +100,24 @@ new Paragraph({
 
 Add several comments to a document:
 
-```ts
+```ts live
+import { CommentRangeEnd, CommentRangeStart, CommentReference, Document, Paragraph, TextRun } from "docx";
+
 const doc = new Document({
     comments: {
         children: [
-            new Comment({
+            {
                 id: 0,
                 author: "Alice",
                 date: new Date("2024-01-15"),
                 children: [new Paragraph("First comment")],
-            }),
-            new Comment({
+            },
+            {
                 id: 1,
                 author: "Bob",
                 date: new Date("2024-01-16"),
                 children: [new Paragraph("Second comment")],
-            }),
+            },
         ],
     },
     sections: [
@@ -119,9 +144,11 @@ const doc = new Document({
 
 ## Reply Threads
 
-Create comment replies using the `parentId` property to build a thread. Reply comments must also have `CommentRangeStart`, `CommentRangeEnd`, and `CommentReference` wrapping the same text as their parent:
+Create comment replies using the `parentId` property to build a thread. Reply comments must also have `CommentRangeStart`, `CommentRangeEnd`, and `CommentReference` wrapping the same text as their parent — Word uses these to anchor each comment to document text, and without them the comment has no visible anchor and may be discarded:
 
-```ts
+```ts live
+import { CommentRangeEnd, CommentRangeStart, CommentReference, Document, Paragraph, TextRun } from "docx";
+
 const doc = new Document({
     comments: {
         children: [
@@ -172,42 +199,88 @@ const doc = new Document({
 
 ## Resolved Comments
 
-Mark a comment thread as resolved using the `resolved` property.
+Mark a comment thread as resolved using the `resolved` property. Setting `resolved: true` on any comment in a thread causes Word to display the entire thread as resolved. For clarity, set it on the root comment:
 
-```ts
-comments: {
-    children: [
+```ts live
+import { CommentRangeEnd, CommentRangeStart, CommentReference, Document, Paragraph, TextRun } from "docx";
+
+const doc = new Document({
+    comments: {
+        children: [
+            {
+                id: 0,
+                author: "Charlie",
+                date: new Date("2024-01-15"),
+                resolved: true, // Marks the entire thread as resolved
+                children: [new Paragraph("This timeline needs updating.")],
+            },
+            {
+                id: 1,
+                author: "Diana",
+                date: new Date("2024-01-16"),
+                parentId: 0,
+                children: [new Paragraph("Done - updated the dates.")],
+            },
+        ],
+    },
+    sections: [
         {
-            id: 0,
-            author: "Charlie",
-            date: new Date("2024-01-15"),
-            children: [new Paragraph("This timeline needs updating.")],
-        },
-        {
-            id: 1,
-            author: "Diana",
-            date: new Date("2024-01-16"),
-            parentId: 0,
-            resolved: true, // Marks this thread as resolved
-            children: [new Paragraph("Done - updated the dates.")],
+            children: [
+                new Paragraph({
+                    children: [
+                        new CommentRangeStart(0),
+                        new CommentRangeStart(1),
+                        new TextRun("The project finishes in March."),
+                        new CommentRangeEnd(0),
+                        new TextRun({ children: [new CommentReference(0)] }),
+                        new CommentRangeEnd(1),
+                        new TextRun({ children: [new CommentReference(1)] }),
+                    ],
+                }),
+            ],
         },
     ],
-}
+});
 ```
 
 ## Rich Text Comments
 
 Comments can contain formatted text:
 
-```ts
-new Comment({
-    id: 0,
-    author: "Reviewer",
-    children: [
-        new Paragraph({
-            children: [new TextRun({ text: "Important: ", bold: true }), new TextRun("Please verify the figures in this section.")],
-        }),
-        new Paragraph("See page 12 of the source document."),
+```ts live
+import { CommentRangeEnd, CommentRangeStart, CommentReference, Document, Paragraph, TextRun } from "docx";
+
+const doc = new Document({
+    comments: {
+        children: [
+            {
+                id: 0,
+                author: "Reviewer",
+                children: [
+                    new Paragraph({
+                        children: [
+                            new TextRun({ text: "Important: ", bold: true }),
+                            new TextRun("Please verify the figures in this section."),
+                        ],
+                    }),
+                    new Paragraph("See page 12 of the source document."),
+                ],
+            },
+        ],
+    },
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new CommentRangeStart(0),
+                        new TextRun("Sales grew by 12% this year."),
+                        new CommentRangeEnd(0),
+                        new CommentReference(0),
+                    ],
+                }),
+            ],
+        },
     ],
 });
 ```
@@ -216,20 +289,20 @@ new Comment({
 
 Document with review comments:
 
-```ts
-import { Comment, CommentRangeEnd, CommentRangeStart, CommentReference, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
+```ts live
+import { CommentRangeEnd, CommentRangeStart, CommentReference, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import * as fs from "fs";
 
 const doc = new Document({
     comments: {
         children: [
-            new Comment({
+            {
                 id: 0,
                 author: "Editor",
                 date: new Date(),
                 children: [new Paragraph("Consider rephrasing this for clarity.")],
-            }),
-            new Comment({
+            },
+            {
                 id: 1,
                 author: "Fact Checker",
                 date: new Date(),
@@ -238,7 +311,7 @@ const doc = new Document({
                         children: [new TextRun({ text: "Verified ", bold: true }), new TextRun("- Source: Annual Report 2023")],
                     }),
                 ],
-            }),
+            },
         ],
     },
     sections: [
@@ -277,12 +350,12 @@ Packer.toBuffer(doc).then((buffer) => {
 
 ### Basic usage
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/73-comments.ts ":include")
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/comments/comments.ts ":include")
 
-_Source: https://github.com/dolanmiu/docx/blob/master/demo/73-comments.ts_
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/comments/comments.ts_
 
 ### Comment Replies and Resolved state
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/101-comment-replies.ts ":include")
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/comments/comment-replies.ts ":include")
 
-_Source: https://github.com/dolanmiu/docx/blob/master/demo/101-comment-replies.ts_
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/comments/comment-replies.ts_

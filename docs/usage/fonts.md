@@ -6,16 +6,16 @@ Custom fonts allow you to embed fonts directly into your document, ensuring cons
 
 Embed a font by providing the font data in the `Document` constructor:
 
-```ts
+```ts live
 import * as fs from "fs";
 import { CharacterSet, Document, Paragraph, TextRun } from "docx";
 
-const fontData = fs.readFileSync("./fonts/MyCustomFont.ttf");
+const fontData = fs.readFileSync("./demo/assets/Pacifico.ttf");
 
 const doc = new Document({
     fonts: [
         {
-            name: "MyCustomFont",
+            name: "Pacifico",
             data: fontData,
             characterSet: CharacterSet.ANSI,
         },
@@ -27,7 +27,7 @@ const doc = new Document({
                     children: [
                         new TextRun({
                             text: "This text uses a custom font",
-                            font: "MyCustomFont",
+                            font: "Pacifico",
                         }),
                     ],
                 }),
@@ -36,6 +36,10 @@ const doc = new Document({
     ],
 });
 ```
+
+## Font Names
+
+The `name` property can contain spaces and non-ASCII characters (e.g. `"EB Garamond"`, `"Noto Sans JP"`). Internally, docx uses sequential filenames (`font1.odttf`, `font2.odttf`, …) for the embedded font data in the zip package, so the font name you choose has no effect on file compatibility.
 
 ## Font Options
 
@@ -46,6 +50,8 @@ const doc = new Document({
 | characterSet | `CharacterSet` | Optional | Character set for the font |
 
 ## Character Sets
+
+The `characterSet` property controls the `w:charset` element in `fontTable.xml`, which tells Word how to interpret the font's character encoding. While optional, specifying the correct character set is important for non-Latin scripts — without it, Word may fall back to a default encoding and render characters incorrectly.
 
 Available character sets:
 
@@ -74,40 +80,109 @@ Available character sets:
 
 ### In TextRun
 
-```ts
-new TextRun({
-    text: "Custom font text",
-    font: "MyCustomFont",
+```ts live
+import * as fs from "fs";
+import { CharacterSet, Document, Paragraph, TextRun } from "docx";
+
+const fontData = fs.readFileSync("./demo/assets/Pacifico.ttf");
+
+const doc = new Document({
+    fonts: [{ name: "Pacifico", data: fontData, characterSet: CharacterSet.ANSI }],
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: "Custom font text",
+                            font: "Pacifico",
+                        }),
+                    ],
+                }),
+            ],
+        },
+    ],
 });
 ```
 
 ### In Paragraph Style
 
-```ts
-new Paragraph({
-    run: {
-        font: "MyCustomFont",
-    },
-    children: [new TextRun("All text in this paragraph uses the custom font")],
+```ts live
+import * as fs from "fs";
+import { CharacterSet, Document, Paragraph, TextRun } from "docx";
+
+const fontData = fs.readFileSync("./demo/assets/Pacifico.ttf");
+
+const doc = new Document({
+    fonts: [{ name: "Pacifico", data: fontData, characterSet: CharacterSet.ANSI }],
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    run: {
+                        font: "Pacifico",
+                    },
+                    children: [new TextRun("All text in this paragraph uses the custom font")],
+                }),
+            ],
+        },
+    ],
 });
 ```
 
 ### In Document Styles
 
-```ts
+```ts live
+import * as fs from "fs";
+import { CharacterSet, Document, Paragraph } from "docx";
+
+const fontData = fs.readFileSync("./demo/assets/Pacifico.ttf");
+
 const doc = new Document({
-    fonts: [{ name: "CustomFont", data: fontData, characterSet: CharacterSet.ANSI }],
+    fonts: [{ name: "Pacifico", data: fontData, characterSet: CharacterSet.ANSI }],
     styles: {
         default: {
             document: {
                 run: {
-                    font: "CustomFont",
+                    font: "Pacifico",
                 },
             },
         },
     },
     sections: [
-        /* ... */
+        {
+            children: [new Paragraph("All text in the document uses the custom font")],
+        },
+    ],
+});
+```
+
+### As the Theme's Font
+
+A font can also be one of the fonts of the document's [theme](usage/themes.md), so text in it changes font when the theme's fonts change:
+
+```ts live
+import * as fs from "fs";
+import { CharacterSet, Document, Paragraph } from "docx";
+
+const fontData = fs.readFileSync("./demo/assets/Pacifico.ttf");
+
+const doc = new Document({
+    fonts: [{ name: "Pacifico", data: fontData, characterSet: CharacterSet.ANSI }],
+    theme: { fonts: { body: "Pacifico" } },
+    styles: {
+        default: {
+            document: {
+                run: {
+                    font: { theme: "body" },
+                },
+            },
+        },
+    },
+    sections: [
+        {
+            children: [new Paragraph("All text in the document uses the theme's font for body text")],
+        },
     ],
 });
 ```
@@ -116,17 +191,21 @@ const doc = new Document({
 
 Embed multiple fonts:
 
-```ts
+```ts live
+import * as fs from "fs";
+import { CharacterSet, Document, Paragraph, TextRun } from "docx";
+
 const doc = new Document({
     fonts: [
         {
             name: "HeadingFont",
-            data: fs.readFileSync("./fonts/Heading.ttf"),
+            // The demo folder has one font, so both are Pacifico here: give each its own font file
+            data: fs.readFileSync("./demo/assets/Pacifico.ttf"),
             characterSet: CharacterSet.ANSI,
         },
         {
             name: "BodyFont",
-            data: fs.readFileSync("./fonts/Body.ttf"),
+            data: fs.readFileSync("./demo/assets/Pacifico.ttf"),
             characterSet: CharacterSet.ANSI,
         },
     ],
@@ -160,17 +239,31 @@ const doc = new Document({
 
 You can mix embedded fonts with system fonts:
 
-```ts
-new Paragraph({
-    children: [
-        new TextRun({
-            text: "System font (Arial), ",
-            font: "Arial",
-        }),
-        new TextRun({
-            text: "Custom embedded font",
-            font: "MyCustomFont",
-        }),
+```ts live
+import * as fs from "fs";
+import { CharacterSet, Document, Paragraph, TextRun } from "docx";
+
+const fontData = fs.readFileSync("./demo/assets/Pacifico.ttf");
+
+const doc = new Document({
+    fonts: [{ name: "Pacifico", data: fontData, characterSet: CharacterSet.ANSI }],
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: "System font (Arial), ",
+                            font: "Arial",
+                        }),
+                        new TextRun({
+                            text: "Custom embedded font",
+                            font: "Pacifico",
+                        }),
+                    ],
+                }),
+            ],
+        },
     ],
 });
 ```
@@ -228,12 +321,12 @@ Packer.toBlob(doc).then((blob) => {
 
 ### Embedding Custom Fonts
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/91-custom-fonts.ts ":include")
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/text/custom-fonts.ts ":include")
 
-_Source: https://github.com/dolanmiu/docx/blob/master/demo/91-custom-fonts.ts_
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/text/custom-fonts.ts_
 
 ### Declarative Custom Fonts
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/92-declarative-custom-fonts.ts ":include")
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/text/custom-fonts-in-styles.ts ":include")
 
-_Source: https://github.com/dolanmiu/docx/blob/master/demo/92-declarative-custom-fonts.ts_
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/text/custom-fonts-in-styles.ts_

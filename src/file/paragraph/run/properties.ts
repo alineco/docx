@@ -11,6 +11,7 @@
  */
 import { type IBorderOptions, createBorderElement } from "@file/border";
 import { type IShadingAttributesProperties, createShading } from "@file/shading";
+import type { ThemeColor } from "@file/theme/theme-color";
 import { ChangeAttributes, type IChangedAttributesProperties } from "@file/track-revision/track-revision";
 import { DeletionTrackChange } from "@file/track-revision/track-revision-components/deletion-track-change";
 import { InsertionTrackChange } from "@file/track-revision/track-revision-components/insertion-track-change";
@@ -25,9 +26,9 @@ import {
 import type { PositiveUniversalMeasure, UniversalMeasure } from "@util/values";
 
 import { type EmphasisMarkType, createEmphasisMark } from "./emphasis-mark";
-import { CharacterSpacing, Color, Highlight, HighlightComplexScript } from "./formatting";
+import { CharacterSpacing, Color, Highlight } from "./formatting";
 import { type ILanguageOptions, createLanguageComponent } from "./language";
-import { type IFontAttributesProperties, createRunFonts } from "./run-fonts";
+import { type IFontAttributesProperties, type IThemeFontReference, createRunFonts } from "./run-fonts";
 import { createSubScript, createSuperScript } from "./script";
 import { type UnderlineType, createUnderline } from "./underline";
 
@@ -162,14 +163,15 @@ export type IRunStylePropertiesOptions = {
     readonly italics?: boolean;
     readonly italicsComplexScript?: boolean;
     readonly underline?: {
-        readonly color?: string;
+        readonly color?: string | ThemeColor;
         readonly type?: (typeof UnderlineType)[keyof typeof UnderlineType];
     };
     readonly effect?: (typeof TextEffect)[keyof typeof TextEffect];
     readonly emphasisMark?: {
         readonly type?: (typeof EmphasisMarkType)[keyof typeof EmphasisMarkType];
     };
-    readonly color?: string;
+    /** The text's color: a hex color such as `"FF0000"`, `"auto"`, or a color of the document's theme such as `{ theme: "accent1" }` */
+    readonly color?: string | ThemeColor;
     readonly kern?: number | PositiveUniversalMeasure;
     readonly position?: UniversalMeasure;
     readonly size?: number | PositiveUniversalMeasure;
@@ -181,8 +183,16 @@ export type IRunStylePropertiesOptions = {
     readonly doubleStrike?: boolean;
     readonly subScript?: boolean;
     readonly superScript?: boolean;
-    readonly font?: string | IFontOptions | IFontAttributesProperties;
+    /**
+     * The font: a font name, a font for each character set, or one of the fonts of the document's theme, such as
+     * `{ theme: "body" }`
+     */
+    readonly font?: string | IFontOptions | IFontAttributesProperties | IThemeFontReference;
     readonly highlight?: (typeof HighlightColor)[keyof typeof HighlightColor];
+    /**
+     * @deprecated Has no effect. WordprocessingML has no highlight of its own for complex script text: `highlight`
+     * highlights all the run's text. docx used to write it as `w:highlightCs`, which is in no schema.
+     */
     readonly highlightComplexScript?: boolean | string;
     readonly characterSpacing?: number;
     readonly shading?: IShadingAttributesProperties;
@@ -348,13 +358,6 @@ export class RunProperties extends IgnoreIfEmptyXmlComponent {
 
         if (options.highlight) {
             this.push(new Highlight(options.highlight));
-        }
-        const highlightCs =
-            options.highlightComplexScript === undefined || options.highlightComplexScript === true
-                ? options.highlight
-                : options.highlightComplexScript;
-        if (highlightCs) {
-            this.push(new HighlightComplexScript(highlightCs));
         }
 
         if (options.underline) {

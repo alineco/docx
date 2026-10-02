@@ -229,6 +229,7 @@ describe("Comments", () => {
                             "xmlns:wpi": "http://schemas.microsoft.com/office/word/2010/wordprocessingInk",
                             "xmlns:wne": "http://schemas.microsoft.com/office/word/2006/wordml",
                             "xmlns:wps": "http://schemas.microsoft.com/office/word/2010/wordprocessingShape",
+                            "mc:Ignorable": "w14 w15 wp14",
                         },
                     },
                     {
@@ -388,6 +389,94 @@ describe("Comments", () => {
                 { durableId: "10000001", dateUtc: "2026-04-15T14:47:00.000Z" },
                 { durableId: "10000002", dateUtc: "2026-04-15T15:00:00.000Z" },
             ]);
+        });
+
+        it("should produce CommentIdData for a single (non-threaded) comment with durableId", () => {
+            const component = new Comments({
+                children: [
+                    {
+                        id: 0,
+                        children: [new Paragraph("comment")],
+                        date: new Date("1999-01-01T00:00:00.000Z"),
+                        durableId: "12AB34CD",
+                    },
+                ],
+            });
+            expect(component.CommentIdData).to.deep.equal([{ paraId: "00000001", durableId: "12AB34CD" }]);
+        });
+
+        it("should expose CommentIdData as CommentIdsData, upstream's name for it", () => {
+            const component = new Comments({
+                children: [{ id: 0, children: [new Paragraph("comment")], date: new Date("1999-01-01T00:00:00.000Z") }],
+            });
+            expect(component.CommentIdsData).to.equal(component.CommentIdData);
+        });
+
+        it("should fall back to a generated durableId when durableId is omitted on a durable-bearing document", () => {
+            const component = new Comments({
+                children: [
+                    {
+                        id: 0,
+                        children: [new Paragraph("with-durable")],
+                        date: new Date("1999-01-01T00:00:00.000Z"),
+                        durableId: "AAAA1111",
+                    },
+                    {
+                        id: 1,
+                        children: [new Paragraph("without-durable")],
+                        date: new Date("1999-01-01T00:00:00.000Z"),
+                    },
+                ],
+            });
+            expect(component.CommentIdData).to.deep.equal([
+                { paraId: "00000001", durableId: "AAAA1111" },
+                { paraId: "00000002", durableId: "10000002" },
+            ]);
+        });
+
+        it("should produce both ThreadData and CommentIdData for threaded comments with durableId", () => {
+            const component = new Comments({
+                children: [
+                    {
+                        id: 0,
+                        children: [new Paragraph("parent")],
+                        date: new Date("1999-01-01T00:00:00.000Z"),
+                        durableId: "11112222",
+                    },
+                    {
+                        id: 1,
+                        children: [new Paragraph("reply")],
+                        date: new Date("1999-01-01T00:00:00.000Z"),
+                        parentId: 0,
+                        durableId: "33334444",
+                    },
+                ],
+            });
+            expect(component.ThreadData).to.deep.equal([
+                { paraId: "00000001", parentParaId: undefined, done: undefined },
+                { paraId: "00000002", parentParaId: "00000001", done: undefined },
+            ]);
+            expect(component.CommentIdData).to.deep.equal([
+                { paraId: "00000001", durableId: "11112222" },
+                { paraId: "00000002", durableId: "33334444" },
+            ]);
+        });
+
+        it("should inject w14:paraId when only durableId (no threading) is used", () => {
+            const component = new Comments({
+                children: [
+                    {
+                        id: 0,
+                        children: [new Paragraph("comment")],
+                        date: new Date("1999-01-01T00:00:00.000Z"),
+                        durableId: "12AB34CD",
+                    },
+                ],
+            });
+            const tree = new Formatter().format(component);
+            const serialized = JSON.stringify(tree);
+            expect(serialized).to.contain('"w14:paraId":"00000001"');
+            expect(serialized).to.contain('"w14:textId":"00000001"');
         });
     });
 });

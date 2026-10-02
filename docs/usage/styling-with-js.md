@@ -2,7 +2,9 @@
 
 ## Example
 
-```ts
+```ts live
+import { AlignmentType, Document, HeadingLevel, Paragraph, TextRun } from "docx";
+
 const para = new Paragraph({
     text: "To whom it may concern:",
     heading: HeadingLevel.HEADING_2,
@@ -15,6 +17,14 @@ const name = new TextRun({
     font: "Calibri",
     allCaps: true,
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [para, new Paragraph({ children: [name] })],
+        },
+    ],
+});
 ```
 
 ## Available Options
@@ -26,7 +36,7 @@ const name = new TextRun({
 - `emphasisMark({type="dot"})`: Set the emphasis mark style
 - `color(color)`: Set the text color, using 6 hex characters for RRGGBB (no leading `#`)
 - `size(halfPts)`: Set the font size, measured in half-points
-- `font(name)` or `font({ascii, cs, eastAsia, hAnsi, hint})`: Set the run's font
+- `font(name)` or `font({ascii, cs, eastAsia, hAnsi, hint})`: Set the run's font, or `font({ theme: "headings" })` or `font({ theme: "body" })` for one of the fonts of the document's [theme](usage/themes.md)
 - `style(name)`: Apply a named run style
 - `characterSpacing(value)`: Set the character spacing adjustment (in TWIPs)
 
@@ -66,22 +76,42 @@ Unlike CSS, less specific rules don't _necessarily_ override parent rules. The r
 
 This is the type of formatting that your uncle uses when he types out documents: _N ... a ... m ... e ... :_ Then he grabs the mouse, highlights _Name:_ and moves over to the **B** for bold. This manner of formatting results in markup that is similar to writing `<span style="bold: true">Name:</span>` if you were typing out HTML. `docx` (the format) allows you to specify this for any of the four types of items. `docx` (the library) only supports this type of formatting for paragraphs and characters, using a _fluent_ api. Thus you could do:
 
-```ts
+```ts live
+import { Document, Paragraph, TextRun } from "docx";
+
 const name = new TextRun({
     text: "Name:",
     bold: true,
     font: "Calibri",
     allCaps: true,
 });
+
+const doc = new Document({
+    sections: [
+        {
+            children: [new Paragraph({ children: [name, new TextRun(" Clippy")] })],
+        },
+    ],
+});
 ```
 
 Or for paragraph formatting:
 
-```ts
+```ts live
+import { AlignmentType, Document, HeadingLevel, Paragraph } from "docx";
+
 const para = new Paragraph({
     text: "To whom it may concern:",
     heading: HeadingLevel.HEADING_2,
     alignment: AlignmentType.CENTER,
+});
+
+const doc = new Document({
+    sections: [
+        {
+            children: [para],
+        },
+    ],
 });
 ```
 
@@ -91,7 +121,9 @@ const para = new Paragraph({
 
 To add styles, define your custom styles in the `document`:
 
-```ts
+```ts live
+import { Document, HeadingLevel, Paragraph, UnderlineType } from "docx";
+
 // The first argument is an ID you use to apply the style to paragraphs
 // The second argument is a human-friendly name to show in the UI
 const doc = new Document({
@@ -143,6 +175,20 @@ const doc = new Document({
             },
         ],
     },
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    text: "A heading in the Heading 2 style",
+                    heading: HeadingLevel.HEADING_2,
+                }),
+                new Paragraph({
+                    text: "A paragraph in My Wonky Style",
+                    style: "myWonkyStyle",
+                }),
+            ],
+        },
+    ],
 });
 ```
 
@@ -151,6 +197,25 @@ const doc = new Document({
 ### Document defaults
 
 Setting document defaults acts like a `*` rule in CSS: it applies to every paragraph and run in the document, but at a low priority level. Other styles affecting this property will override these defaults.
+
+### The Normal style
+
+Paragraphs that don't name a style use the default paragraph style, `Normal`, which the headings and other built-in styles are based on. `docx` writes a `Normal` with no formatting of its own, so paragraphs take the document defaults. To format it, give a paragraph style with the id `Normal`. It takes the place of `docx`'s and stays the default:
+
+```ts live
+import { Document, Paragraph } from "docx";
+
+const doc = new Document({
+    styles: {
+        paragraphStyles: [{ id: "Normal", name: "Normal", run: { font: "Calibri", size: 22 } }],
+    },
+    sections: [
+        {
+            children: [new Paragraph("A paragraph in the Normal style, in 11 point Calibri")],
+        },
+    ],
+});
+```
 
 ## Advanced formatting
 
@@ -203,6 +268,6 @@ For these properties, the rules state the following conflict resolution in case 
 
 Importing Images from file system path
 
-[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/2-declarative-styles.ts ":include")
+[Example](https://raw.githubusercontent.com/dolanmiu/docx/master/demo/styles/default-styles.ts ":include")
 
-_Source: https://github.com/dolanmiu/docx/blob/master/demo/2-declarative-styles.ts_
+_Source: https://github.com/dolanmiu/docx/blob/master/demo/styles/default-styles.ts_

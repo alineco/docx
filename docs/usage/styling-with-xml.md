@@ -28,24 +28,50 @@
 
 Read the styles using `fs`, and put it into the `Document` object in the constructor:
 
-```ts
-const styles = fs.readFileSync("./styles.xml", "utf-8");
-const doc = new docx.Document({
+```ts live
+import { Document, Paragraph } from "docx";
+import * as fs from "fs";
+
+const styles = fs.readFileSync("./demo/assets/custom-styles.xml", "utf-8");
+const doc = new Document({
     title: "Title",
     externalStyles: styles,
+    sections: [
+        {
+            children: [new Paragraph("Some normal text, in the Normal style of styles.xml")],
+        },
+    ],
 });
 ```
 
-You can use paragraphs, `heading1()`, `heading2()` etc and it will be styled according to your `styles.xml` created earlier. You can even use your new style you made by calling the `style` method:
+Your styles take the place of the library's default styles with the same ids, and your document defaults take the place of the library's. The library's default styles fill in the ones your `styles.xml` leaves out, such as `Hyperlink` or `FootnoteText`. A default style you set in `styles.default`, such as `heading1` or `document`, takes the place of yours.
 
-```ts
-doc.createParagraph("Cool Heading Text").heading1();
+You can use paragraphs, `HeadingLevel.HEADING_1`, `HeadingLevel.HEADING_2` etc and it will be styled according to your `styles.xml` created earlier. You can even use your new style you made with the `style` option:
 
-const paragraph = new docx.Paragraph('This is a custom named style from the template "Cool New Style"');
-paragraph.style("Cool New Style");
-doc.add(paragraph);
+```ts live
+import { Document, HeadingLevel, Paragraph } from "docx";
+import * as fs from "fs";
 
-doc.createParagraph("Some normal text");
+const styles = fs.readFileSync("./demo/assets/custom-styles.xml", "utf-8");
+const doc = new Document({
+    title: "Title",
+    externalStyles: styles,
+    sections: [
+        {
+            children: [
+                new Paragraph({
+                    text: "Cool Heading Text",
+                    heading: HeadingLevel.HEADING_1,
+                }),
+                new Paragraph({
+                    text: 'This is a custom named style from the template "MyFancyStyle"',
+                    style: "MyFancyStyle",
+                }),
+                new Paragraph("Some normal text"),
+            ],
+        },
+    ],
+});
 ```
 
-Example: https://github.com/dolanmiu/docx/blob/master/demo/13-xml-styles.ts
+Example: https://github.com/dolanmiu/docx/blob/master/demo/styles/xml-styles.ts

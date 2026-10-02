@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { File } from "@file/file";
 import { Footer, Header } from "@file/header";
-import { ImageRun, Paragraph } from "@file/paragraph";
+import { Bookmark, ImageRun, Paragraph, TextRun, WpsShapeRun } from "@file/paragraph";
 import * as convenienceFunctions from "@util/convenience-functions";
 
 import { Compiler } from "./next-compiler";
@@ -27,14 +27,14 @@ describe("Compiler", () => {
             const file = new File({
                 sections: [],
                 comments: {
-                    children: [],
+                    children: [{ id: 0, children: [new Paragraph("comment")] }],
                 },
             });
             const zipFile = compiler.compile(file);
             const fileNames = Object.keys(zipFile.files).map((f) => zipFile.files[f].name);
 
             expect(fileNames).is.an.instanceof(Array);
-            expect(fileNames).has.length(22);
+            expect(fileNames).has.length(26);
             expect(fileNames).to.include("word/document.xml");
             expect(fileNames).to.include("word/styles.xml");
             expect(fileNames).to.include("docProps/core.xml");
@@ -47,11 +47,52 @@ describe("Compiler", () => {
             expect(fileNames).to.include("word/_rels/endnotes.xml.rels");
             expect(fileNames).to.include("word/settings.xml");
             expect(fileNames).to.include("word/comments.xml");
+            expect(fileNames).to.include("word/commentsIds.xml");
+            expect(fileNames).to.include("word/commentsExtensible.xml");
             expect(fileNames).to.include("word/fontTable.xml");
             expect(fileNames).to.include("word/_rels/document.xml.rels");
             expect(fileNames).to.include("word/_rels/fontTable.xml.rels");
+            expect(fileNames).to.include("word/theme/theme1.xml");
             expect(fileNames).to.include("[Content_Types].xml");
             expect(fileNames).to.include("_rels/.rels");
+        });
+
+        it("should not pack a comments part, or refer to one, when there are no comments", async () => {
+            const zipFile = compiler.compile(new File({ sections: [], comments: { children: [] } }));
+            const fileNames = Object.keys(zipFile.files);
+
+            expect(fileNames).to.not.include("word/comments.xml");
+            expect(fileNames).to.not.include("word/_rels/comments.xml.rels");
+            expect(await zipFile.file("[Content_Types].xml")?.async("text")).to.not.contain("comments");
+            expect(await zipFile.file("word/_rels/document.xml.rels")?.async("text")).to.not.contain("comments");
+        });
+
+        it("should pack a comments part, and refer to it, when there are comments", async () => {
+            const zipFile = compiler.compile(
+                new File({ sections: [], comments: { children: [{ id: 0, children: [new Paragraph("comment")] }] } }),
+            );
+            const fileNames = Object.keys(zipFile.files);
+
+            expect(fileNames).to.include("word/comments.xml");
+            expect(fileNames).to.include("word/_rels/comments.xml.rels");
+            expect(await zipFile.file("[Content_Types].xml")?.async("text")).to.contain(
+                '<Override ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml" PartName="/word/comments.xml"/>',
+            );
+            expect(await zipFile.file("word/_rels/document.xml.rels")?.async("text")).to.contain(
+                'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"',
+            );
+        });
+
+        it("should give an image in a comment a relationship from the comments part", async () => {
+            const image = new ImageRun({ type: "png", data: Buffer.from("", "base64"), transformation: { width: 10, height: 10 } });
+            const zipFile = compiler.compile(
+                new File({ sections: [], comments: { children: [{ id: 0, children: [new Paragraph({ children: [image] })] }] } }),
+            );
+
+            expect(await zipFile.file("word/comments.xml")?.async("text")).to.contain('r:embed="rId1"');
+            expect(await zipFile.file("word/_rels/comments.xml.rels")?.async("text")).to.match(
+                /<Relationship Id="rId1" Type="http:\/\/schemas.openxmlformats.org\/officeDocument\/2006\/relationships\/image" Target="media\/[^"]+\.png"\/>/,
+            );
         });
 
         it("should pack all additional headers and footers", { timeout: 99999999 }, () => {
@@ -119,7 +160,7 @@ describe("Compiler", () => {
             const fileNames = Object.keys(zipFile.files).map((f) => zipFile.files[f].name);
 
             expect(fileNames).is.an.instanceof(Array);
-            expect(fileNames).has.length(23);
+            expect(fileNames).has.length(24);
 
             expect(fileNames).to.include("word/comments.xml");
             expect(fileNames).to.include("word/commentsExtended.xml");
@@ -183,6 +224,159 @@ describe("Compiler", () => {
             expect(commentsExtensibleText).to.contain("w16cex:commentExtensible");
             expect(commentsExtensibleText).to.contain('w16cex:durableId="10000001"');
             expect(commentsExtensibleText).to.contain('w16cex:dateUtc="2026-04-15T14:47:00.000Z"');
+        });
+
+        it("should include commentsIds.xml for a single (non-threaded) comment with durableId", { timeout: 99999999 }, async () => {
+            const file = new File({
+                sections: [],
+                comments: {
+                    children: [{ id: 0, children: [new Paragraph("comment")], durableId: "12AB34CD" }],
+                },
+            });
+            const zipFile = compiler.compile(file);
+            const fileNames = Object.keys(zipFile.files).map((f) => zipFile.files[f].name);
+
+            expect(fileNames).to.include("word/commentsIds.xml");
+
+            const commentsIdsText = await zipFile.file("word/commentsIds.xml")?.async("text");
+            expect(commentsIdsText).to.contain("w16cid:commentsIds");
+            expect(commentsIdsText).to.contain("w16cid:commentId");
+            expect(commentsIdsText).to.contain('w16cid:paraId="00000001"');
+            expect(commentsIdsText).to.contain('w16cid:durableId="12AB34CD"');
+
+            // Content type override is registered
+            const contentTypesText = await zipFile.file("[Content_Types].xml")?.async("text");
+            expect(contentTypesText).to.contain("application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml");
+            expect(contentTypesText).to.contain("/word/commentsIds.xml");
+
+            // Relationship is registered
+            const relsText = await zipFile.file("word/_rels/document.xml.rels")?.async("text");
+            expect(relsText).to.contain("http://schemas.microsoft.com/office/2016/09/relationships/commentsIds");
+            expect(relsText).to.contain("commentsIds.xml");
+        });
+
+        it("should include commentsIds.xml mapping paraId to durableId for threaded comments", { timeout: 99999999 }, async () => {
+            const file = new File({
+                sections: [],
+                comments: {
+                    children: [
+                        { id: 0, children: [new Paragraph("parent")], durableId: "11112222" },
+                        { id: 1, children: [new Paragraph("reply")], parentId: 0, durableId: "33334444" },
+                    ],
+                },
+            });
+            const zipFile = compiler.compile(file);
+            const fileNames = Object.keys(zipFile.files).map((f) => zipFile.files[f].name);
+
+            expect(fileNames).to.include("word/commentsIds.xml");
+            expect(fileNames).to.include("word/commentsExtended.xml");
+
+            const commentsIdsText = await zipFile.file("word/commentsIds.xml")?.async("text");
+            expect(commentsIdsText).to.contain('w16cid:paraId="00000001"');
+            expect(commentsIdsText).to.contain('w16cid:durableId="11112222"');
+            expect(commentsIdsText).to.contain('w16cid:paraId="00000002"');
+            expect(commentsIdsText).to.contain('w16cid:durableId="33334444"');
+        });
+
+        it(
+            "should emit commentsIds.xml falling back to a generated durableId for comments without a durableId",
+            { timeout: 99999999 },
+            async () => {
+                const file = new File({
+                    sections: [],
+                    comments: {
+                        children: [
+                            { id: 0, children: [new Paragraph("with durable")], durableId: "12AB34CD" },
+                            { id: 1, children: [new Paragraph("without durable")] },
+                        ],
+                    },
+                });
+                const zipFile = compiler.compile(file);
+                const fileNames = Object.keys(zipFile.files).map((f) => zipFile.files[f].name);
+
+                expect(fileNames).to.include("word/commentsIds.xml");
+
+                const commentsIdsText = await zipFile.file("word/commentsIds.xml")?.async("text");
+                // Comment WITH a durableId keeps its durableId (paraId 00000001 for id 0)
+                expect(commentsIdsText).to.contain('w16cid:paraId="00000001"');
+                expect(commentsIdsText).to.contain('w16cid:durableId="12AB34CD"');
+                // Comment WITHOUT a durableId falls back to a durableId generated from its id (10000002 for id 1)
+                expect(commentsIdsText).to.contain('w16cid:paraId="00000002"');
+                expect(commentsIdsText).to.contain('w16cid:durableId="10000002"');
+            },
+        );
+
+        it("should write each bookmark with one distinct id shared by its start and end", async () => {
+            const bookmarked = (name: string): Paragraph =>
+                new Paragraph({ children: [new Bookmark({ id: name, children: [new TextRun(name)] })] });
+            const file = new File({
+                sections: [
+                    {
+                        headers: { default: new Header({ children: [bookmarked("header")] }) },
+                        footers: { default: new Footer({ children: [bookmarked("footer")] }) },
+                        children: [bookmarked("first"), bookmarked("second")],
+                    },
+                ],
+            });
+
+            // Headers and footers are formatted more than once per compile, and a
+            // document can be packed repeatedly, so compile twice.
+            compiler.compile(file);
+            const zipFile = compiler.compile(file);
+            const xml = (
+                await Promise.all(
+                    ["word/document.xml", "word/header1.xml", "word/footer1.xml"].map((name) => zipFile.file(name)?.async("text")),
+                )
+            ).join("");
+
+            const idsOf = (tag: string): readonly (readonly string[])[] =>
+                [...xml.matchAll(new RegExp(`<${tag} ([^>]*)>`, "g"))].map(([, attributes]) =>
+                    [...attributes.matchAll(/w:id="(\d+)"/g)].map(([, id]) => id),
+                );
+            const startIds = idsOf("w:bookmarkStart");
+            const endIds = idsOf("w:bookmarkEnd");
+
+            expect(startIds).to.have.length(4);
+            expect(startIds.every((ids) => ids.length === 1)).to.equal(true);
+            expect(new Set(startIds.flat()).size).to.equal(4);
+            expect(endIds).to.deep.equal(startIds);
+        });
+
+        it("should write each drawing with a distinct id", async () => {
+            const image = (): Paragraph =>
+                new Paragraph({
+                    children: [new ImageRun({ type: "png", data: Buffer.from("", "base64"), transformation: { width: 10, height: 10 } })],
+                });
+            const textBox = (): Paragraph =>
+                new Paragraph({
+                    children: [
+                        new WpsShapeRun({ type: "wps", children: [new Paragraph("text")], transformation: { width: 10, height: 10 } }),
+                    ],
+                });
+            const file = new File({
+                sections: [
+                    {
+                        headers: { default: new Header({ children: [textBox(), image()] }) },
+                        footers: { default: new Footer({ children: [image()] }) },
+                        children: [image(), textBox(), image()],
+                    },
+                ],
+            });
+
+            // Headers and footers are formatted more than once per compile, and a
+            // document can be packed repeatedly, so compile twice.
+            compiler.compile(file);
+            const zipFile = compiler.compile(file);
+            const xml = (
+                await Promise.all(
+                    ["word/document.xml", "word/header1.xml", "word/footer1.xml"].map((name) => zipFile.file(name)?.async("text")),
+                )
+            ).join("");
+
+            const ids = [...xml.matchAll(/<wp:docPr id="(\d+)"/g)].map(([, id]) => id);
+
+            expect(ids).to.have.length(6);
+            expect(new Set(ids).size).to.equal(6);
         });
 
         it("should call the format method X times equalling X files to be formatted", () => {
@@ -306,6 +500,29 @@ describe("Compiler", () => {
             });
 
             compiler.compile(file);
+        });
+
+        it("should write embedded fonts to sequential filenames in the zip (no spaces or special chars from family name)", () => {
+            // Regression for https://github.com/dolanmiu/docx/issues/3019 —
+            // fonts whose user-facing family name contains spaces / non-ASCII
+            // used to be written into the package zip with the family name as
+            // the filename (e.g. `EB Garamond.odttf`). Word rejects those
+            // paths and shows a "found unreadable content" recovery prompt on
+            // open. Sequential names side-step that.
+            const file = new File({
+                sections: [],
+                fonts: [
+                    { name: "EB Garamond", data: Buffer.from("") },
+                    { name: "Source Serif 4", data: Buffer.from("") },
+                ],
+            });
+
+            const zip = compiler.compile(file);
+            const fileNames = Object.keys(zip.files);
+            expect(fileNames).to.include("word/fonts/font1.odttf");
+            expect(fileNames).to.include("word/fonts/font2.odttf");
+            expect(fileNames).to.not.include("word/fonts/EB Garamond.odttf");
+            expect(fileNames).to.not.include("word/fonts/Source Serif 4.odttf");
         });
     });
 });
